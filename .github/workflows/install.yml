@@ -283,7 +283,9 @@ jobs:
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
   release:
-    if: ${{ needs.meta.outputs.is_release == 'true' }}
+    # fork 可能未配置 Android 正式签名：Android 失败时仍发布桌面包，成功则一并带上。
+    if: ${{ !cancelled() && needs.meta.outputs.is_release == 'true' &&
+      needs.install.result == 'success' && needs.changelog.result == 'success' }}
     needs: [ meta, install, changelog, android ]
     runs-on: ubuntu-latest
     steps:

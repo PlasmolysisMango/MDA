@@ -187,7 +187,6 @@ MDA 存在 `agent/go-service/`，当前包含：
 - `taskersink/aspectratio`
 - `taskersink/hdrcheck`
 - `taskersink/processcheck`
-- `taskersink/membership`
 
 开发 Go 组件时：
 

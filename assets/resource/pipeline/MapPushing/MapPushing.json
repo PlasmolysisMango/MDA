@@ -6,10 +6,7 @@
             "[JumpBack]CommonSkipPlot",
             "[JumpBack]MapPushingClickMonster",
             "[JumpBack]MapPushingClickPlate"
-        ],
-        "focus": {
-            "Node.Action.Succeeded": "$focus.MapPushingFlow.Action.Succeeded"
-        }
+        ]
     },
     "MapPushingClickMonsterRaw": {
         "desc": "推图怪物原始识别",

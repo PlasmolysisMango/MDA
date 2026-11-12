@@ -142,7 +142,6 @@
         "tasks/MapPushing.json",
         "tasks/RedDotClear.json",
         "tasks/FriendManagement.json",
-        "tasks/QuotaDisplay.json",
         "tasks/preset/DailyFull.json",
         "tasks/preset/QuickDaily.json",
         "tasks/preset/SelfUse.json"

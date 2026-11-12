@@ -1,12 +1,6 @@
 {
     "EquipmentRerollMain": {
-        "desc": "洗词条任务主入口", // 洗词条任务的入口：从详情资讯页开始，先识别四件装备，再按自定义配额执行效果变更。入口动作 RuntimeQuotaCheck 先检查运行额度，未通过不会进入 EquipmentRerollFlow
-        "action": {
-            "type": "Custom",
-            "param": {
-                "custom_action": "RuntimeQuotaCheck"
-            }
-        },
+        "desc": "洗词条任务主入口", // 洗词条任务的入口：从详情资讯页开始，先识别四件装备，再按自定义配额执行效果变更
         "next": [
             "EquipmentRerollFlow"
         ]

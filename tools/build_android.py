@@ -21,16 +21,16 @@ ANDROID_VERSIONS = json.loads(
 )
 RELEASE = ANDROID_VERSIONS["release"]
 BUILD = ROOT / "Android" / "build"
-MEMBER_BUILD = BUILD / "membership"
+MOBILE_BUILD = BUILD / "mobile"
 MAAFW_TAG = ANDROID_VERSIONS["maafw_tag"]
 DEV_VERSION = "0.0.0-dev.2"
 TEST_VERSION = DEV_VERSION
 DEFAULT_TEST_VERSION = "2.5.0-android-test.2"
-# 正式版本同时覆盖 MaaFwApp 的 versionName 与 PI 的 version，必须能被会员检查识别。
+# 正式版本同时覆盖 MaaFwApp 的 versionName 与 PI 的 version。
 # 正式 tag 不接受 +build：git-cliff 的正式版 tag-pattern 不匹配它，发布正文会错位。
 RELEASE_VERSION = re.compile(r"[1-9]\d*\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?")
-# 测试版本带 +commit，供会员检查区分 Android CI 包。
-MEMBER_VERSION = re.compile(
+# 测试版本带 +commit，便于区分 Android CI 包。
+CI_VERSION = re.compile(
     r"[1-9]\d*\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?"
 )
 # 与实体按键审计测试对应；只给出提示，不替换原有动作。
@@ -46,14 +46,8 @@ RELEASE_NOTICE = """# MDA 手机版
 本包随 MDA 正式版发布，安装后可在应用内检查更新。
 
 1. 安装后授予 Shizuku 或 root，等待服务连接；后台虚拟屏需要 Android 10+。
-2. 先运行「Agent 自检」，确认连接和会员/额度信息，再运行「启动国际服」。
+2. 先运行「Agent 自检」，确认 Agent 连接正常，再运行「启动国际服」。
 3. 完成游戏登录并启用横屏，运行「进入大厅」，之后逐项运行其他任务。
-
-## 会员
-
-手机与电脑必须分别绑定、分别开通，并使用不同的会员 ID。
-客户端沿用原 DoroPay 六字段协议，不需要协议或数据库迁移。
-离线缓存、定向额度券与桌面版一致，换绑前请确认目标设备。
 
 ## 实体按键功能：手机版请勿使用
 
@@ -157,7 +151,7 @@ def annotate_keyboard_features(target: Path) -> None:
 def prepare_assets(version: str, release: bool) -> Path:
     """复用全部任务与预设，并在 Android 生成资源中注明按键限制。
 
-    正式包保留 GitHub / Mirror酱 更新源与正式名称；测试包改用独立包名并移除更新源，
+    正式包保留 GitHub 更新源与正式名称；测试包改用独立包名并移除更新源，
     避免联调包把用户带到正式渠道。
     """
     source = ROOT / "assets"
@@ -209,8 +203,8 @@ def prepare_assets(version: str, release: bool) -> Path:
                 {
                     "name": "AndroidAgentCheck",
                     "label": "Agent 自检",
-                    "description": "调用现有 Go 自定义动作；显示会员与额度信息表示 Agent 回调链路已连通。",
-                    "entry": "QuotaDisplayMain",
+                    "description": "调用 Go 自定义动作；任务成功表示 Agent 回调链路已连通。",
+                    "entry": "AndroidAgentCheck",
                     "controller": ["ADB"],
                     "group": ["utility"],
                 },
@@ -235,7 +229,17 @@ def prepare_assets(version: str, release: bool) -> Path:
                     "type": "StartApp",
                     "param": {"package": "com.proximabeta.nikke"},
                 },
-            }
+            },
+            "AndroidAgentCheck": {
+                "desc": "调用 Go 自定义动作验证 Agent 回调链路",
+                "recognition": {
+                    "type": "DirectHit",
+                },
+                "action": {
+                    "type": "Custom",
+                    "param": {"custom_action": "AndroidSelfCheck"},
+                },
+            },
         },
     )
     print(f"Android 资源: {target}", flush=True)
@@ -336,7 +340,7 @@ def main() -> None:
         "--release", action="store_true", help="构建正式发行 APK（release + 正式签名）"
     )
     parser.add_argument(
-        "--membership", action="store_true", help="构建启用正式会员检查的测试包"
+        "--test-build", action="store_true", help="构建使用正式版本号的测试包"
     )
     parser.add_argument("--pr-build", action="store_true", help="使用独立 PR 包名")
     parser.add_argument(
@@ -351,26 +355,24 @@ def main() -> None:
     args = parser.parse_args()
     if RELEASE["abi"] != "arm64-v8a":
         parser.error("当前 Android Agent 只支持 arm64-v8a")
-    if args.release and args.membership:
-        parser.error("--release 与 --membership 不能同时使用")
-    if args.pr_build and not args.membership:
-        parser.error("--pr-build 仅用于 --membership")
+    if args.pr_build and not args.test_build:
+        parser.error("--pr-build 仅用于 --test-build")
     if args.release:
         if not args.version:
             parser.error("正式构建必须指定 --version（正式 tag 去掉 v）")
         if not RELEASE_VERSION.fullmatch(args.version):
             parser.error("正式版本必须形如 1.12.3 或 1.12.3-beta.1")
     MAAFW_TAG = args.maafw_tag
-    if args.membership or args.release:
-        BUILD = MEMBER_BUILD
+    if args.test_build or args.release:
+        BUILD = MOBILE_BUILD
     if args.release:
         TEST_VERSION = args.version
-    elif args.membership:
+    elif args.test_build:
         TEST_VERSION = args.version or DEFAULT_TEST_VERSION
     elif args.version:
         TEST_VERSION = args.version
-    if args.membership and not MEMBER_VERSION.fullmatch(TEST_VERSION):
-        parser.error("会员测试需要 major >= 1 的版本，防止进入 dev 免会员模式")
+    if args.test_build and not CI_VERSION.fullmatch(TEST_VERSION):
+        parser.error("测试构建需要 major >= 1 的版本，避免退化为 dev")
     if args.release and not args.prepare_only:
         # 正式包必须签名；在复制整仓资源前失败，避免几十秒后才报缺 keystore。
         missing = [
@@ -386,23 +388,11 @@ def main() -> None:
         if missing:
             parser.error("正式构建需要签名环境变量: " + ", ".join(missing))
     prepare_assets(TEST_VERSION, args.release)
-    if args.membership:
-        notice = BUILD / "assets/AndroidTestNotice.md"
-        text = notice.read_text(encoding="utf-8").replace(
-            "本包不是正式发行包，不承载应用内更新；测试反馈请附带导出的日志 ZIP。",
-            "本包启用正式会员与运行额度检查。手机会员独立开通，请使用与电脑不同的用户 ID。"
-            "沿用原 DoroPay 六字段接口，无需协议或数据库迁移。",
-        )
-        notice.write_text(text, encoding="utf-8")
     if args.prepare_only:
         return
     if args.shell is None or args.ndk is None:
         parser.error("构建 APK 必须指定 --shell 与 --ndk")
     shell = args.shell.resolve()
-    if args.membership or args.release:
-        from android_shell import apply_overlay
-
-        apply_overlay(shell)
     if args.skip_framework:
         marker = shell / ".maafwversion"
         if (
@@ -434,7 +424,7 @@ def main() -> None:
         if not agent_dist.is_file():
             parser.error("--skip-agent 需要已构建的 Android Agent")
     else:
-        version = TEST_VERSION if (args.membership or args.release) else "dev"
+        version = TEST_VERSION if (args.test_build or args.release) else "dev"
         build_agent(args.ndk.resolve(), version)
     if not args.skip_framework:
         subprocess.run(
@@ -451,11 +441,11 @@ def main() -> None:
         )
     if args.release:
         profile = "Android/release.profile.yaml"
-    elif args.membership:
+    elif args.test_build:
         profile = (
             "Android/pr.profile.yaml"
             if args.pr_build
-            else "Android/membership.profile.yaml"
+            else "Android/test.profile.yaml"
         )
     else:
         profile = "Android/profile.yaml"
@@ -489,15 +479,15 @@ def main() -> None:
         raise RuntimeError(f"预期一个 {output} APK，实际发现 {len(apks)} 个")
     if args.release:
         destination = BUILD / f"{RELEASE['artifact_prefix']}-{TEST_VERSION}.apk"
-    elif args.membership:
-        destination = BUILD / "MDA-android-membership-test.apk"
+    elif args.test_build:
+        destination = BUILD / "MDA-android-test.apk"
     else:
         destination = BUILD / "MDA-android-arm64-test.apk"
     shutil.copy2(apks[0], destination)
-    if args.membership:
-        versioned = BUILD / f"MDA-android-membership-{TEST_VERSION}.apk"
+    if args.test_build:
+        versioned = BUILD / f"MDA-android-{TEST_VERSION}.apk"
         shutil.copy2(destination, versioned)
-        print(f"带版本号的会员联调 APK: {versioned}", flush=True)
+        print(f"带版本号的测试 APK: {versioned}", flush=True)
     (BUILD / "build-number.txt").write_text(str(number) + "\n", encoding="utf-8")
     print(f"Android APK: {destination}", flush=True)
 

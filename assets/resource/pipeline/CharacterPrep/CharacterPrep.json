@@ -1,12 +1,6 @@
 {
     "CharacterPrepMain": {
         "desc": "角色预热入口",
-        "action": {
-            "type": "Custom",
-            "param": {
-                "custom_action": "RuntimeQuotaCheck"
-            }
-        },
         "next": [
             "CharacterPrepEntryFlow"
         ]

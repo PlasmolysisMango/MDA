@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/1204244136/MDA/agent/go-service/androidcheck"
 	"github.com/1204244136/MDA/agent/go-service/collectible"
 	"github.com/1204244136/MDA/agent/go-service/common/centerpriority"
 	"github.com/1204244136/MDA/agent/go-service/customburst"
@@ -21,6 +22,7 @@ func registerAll() {
 	equipmentreroll.Register()
 	customburst.Register()
 	collectible.Register()
+	androidcheck.Register()
 
 	// Pre-Check Custom
 	aspectratio.Register()

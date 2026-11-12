@@ -1,6 +1,6 @@
 # 正式发行配方；资源由 tools/build_android.py 准备，APK 随桌面包一起进 Release。
-# 测试联调仍用 membership.profile.yaml / pr.profile.yaml，包名与本配方不同，可并存安装。
-assets: build/membership/assets
+# 测试联调仍用 test.profile.yaml / pr.profile.yaml，包名与本配方不同，可并存安装。
+assets: build/mobile/assets
 include:
   - interface.json
   - README.md
@@ -10,7 +10,7 @@ include:
   - resource/**
   - locales/**
 agent:
-  sourceDir: build/membership/agent-dist
+  sourceDir: build/mobile/agent-dist
   abi: [arm64-v8a]
   runtimes:
     - location: nativeLibs
@@ -19,7 +19,6 @@ agent:
       env:
         LD_LIBRARY_PATH: "{nativeLibs}"
         MAAFW_BINARY_PATH: "{nativeLibs}"
-        MDA_ANDROID_MEMBERSHIP_ENABLED: "1"
 logs:
   include:
     - debug/**/*.log
@@ -34,6 +33,3 @@ app:
   id: mda
   label: MDA
   icon: ../assets/locales/MDA-Tiny.png
-# 手机版复用桌面 RID MDA，Mirror酱按 os=android / arch=arm64 区分平台。
-update:
-  mirrorchyanRid: MDA

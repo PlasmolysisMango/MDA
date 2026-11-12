@@ -292,7 +292,7 @@ class NavigationRun:
                 pass  # Existing interception entry popup dismissal.
             elif node in {"ArenaMain", "OutpostMain", "InterceptionMain", "SimulationRoomMain", "TribeTowerMain",
                           "AdviseMain", "CashShopMain", "AccountNurturingMain"}:
-                pass  # RuntimeQuotaCheck boundary.
+                pass  # 入口节点只分发，不执行动作。
             else:
                 return self.unexpected(f"unexpected business action: {node}")
             return 1
@@ -428,10 +428,10 @@ def check_behaviors(run):
     # Stop at business boundaries. The real Main and scene navigation are still
     # executed, while no game business beyond the boundary is modeled here.
     assert run.run("InterceptionMain", "hall", extra={"InterceptionBattleFlow": {"next": []}}) == SUCCEEDED
-    assert run.actions.count("InterceptionMain") == 1, run.actions
+    assert not run.actions, run.actions
     assert run.page == "interception" and "InterceptionBattleFlow" in run.completed
     count += 1
-    print("[PASS] Main跨场景恢复后额度动作只执行一次")
+    print("[PASS] Main跨场景恢复后直达业务边界")
 
     claim_expected = run.nodes["ArenaSpecialRewardBadgeVisible"]["recognition"]["param"]["expected"]
     claim_pattern = re.compile("|".join(claim_expected))
@@ -444,7 +444,7 @@ def check_behaviors(run):
                                 ArenaEnterChampionArena="No")
     assert run.run("ArenaMain", "hall", reward=True, reward_progress=50,
                    reward_open="slow", reward_delay=7, extra=disabled) == SUCCEEDED, run.completed
-    assert run.actions == ["ArenaMain", "__ScenePrivateClickArk", "ArenaClaimSpecialReward", "ArenaConfirmSpecialReward",
+    assert run.actions == ["__ScenePrivateClickArk", "ArenaClaimSpecialReward", "ArenaConfirmSpecialReward",
                            "ArenaDismissSpecialReward", "__SceneArkClickArena"], run.actions
     assert run.completed.count("ArenaWaitSpecialRewardInfo") == 2, run.completed
     assert run.completed.count("ArenaWaitSpecialRewardResult") == 7, run.completed
@@ -455,25 +455,25 @@ def check_behaviors(run):
 
     assert run.run("ArenaMain", "ark", extra=disabled) == SUCCEEDED, run.completed
     assert run.page == "arena"
-    assert run.actions == ["ArenaMain", "ArenaClaimSpecialReward", "ArenaConfirmSpecialReward",
+    assert run.actions == ["ArenaClaimSpecialReward", "ArenaConfirmSpecialReward",
                            "ArenaCloseSpecialRewardInfo", "__SceneArkClickArena"], run.actions
     assert run.completed.count("ArenaWaitSpecialRewardResult") == 7, run.completed
     count += 1
     print("[PASS] 空奖详情保留领取按钮时只点一次，等完结算窗口再关闭")
 
     assert run.run("ArenaMain", "ark", reward_progress=49, extra=disabled) == SUCCEEDED, run.completed
-    assert run.actions == ["ArenaMain", "__SceneArkClickArena"], run.actions
+    assert run.actions == ["__SceneArkClickArena"], run.actions
     count += 1
     print("[PASS] 低于 50% 时直接进场")
 
     assert run.run("ArenaMain", "ark", reward_open="expired", extra=disabled) == SUCCEEDED, run.completed
-    assert run.actions == ["ArenaMain", "ArenaClaimSpecialReward", "__SceneArkClickArena"], run.actions
+    assert run.actions == ["ArenaClaimSpecialReward", "__SceneArkClickArena"], run.actions
     assert "ArenaSpecialRewardBadgeGone" in run.completed, run.completed
     count += 1
     print("[PASS] 点击时领取资格已失效，在方舟正常跳过")
 
     assert run.run("ArenaMain", "ark", reward_open="blocked", extra=disabled) == FAILED, run.completed
-    assert run.actions == ["ArenaMain", "ArenaClaimSpecialReward"], run.actions
+    assert run.actions == ["ArenaClaimSpecialReward"], run.actions
     assert run.failed_nodes == ["ArenaClaimSpecialReward"], run.failed_nodes
     count += 1
     print("[PASS] 徽章持续可领且始终没开窗时报告失败，开窗只点一次")
@@ -481,7 +481,7 @@ def check_behaviors(run):
     reward_disabled = {**disabled, **option_overrides("Arena.json", SpecialReward="No")}
     assert run.run("ArenaMain", "ark", reward=True, extra=reward_disabled) == SUCCEEDED
     assert run.page == "arena" and run.reward
-    assert run.actions == ["ArenaMain", "__SceneArkClickArena"], run.actions
+    assert run.actions == ["__SceneArkClickArena"], run.actions
     count += 1
     print("[PASS] 关闭累积奖励选项时直接进入竞技场，不开窗、不领取")
 
@@ -498,16 +498,16 @@ def check_behaviors(run):
     advise_disabled = option_overrides("Advise.json", NikkeAdvise="No")
     for page in ("nikke", "advise"):
         assert run.run("AdviseMain", page, extra=advise_disabled) == SUCCEEDED, run.completed
-        assert run.page == page and run.actions == ["AdviseMain"], run.actions
+        assert run.page == page and not run.actions, run.actions
         assert "AdviseEnterAdvisePage" not in run.completed
         assert "AdviseMainPageFlow" not in run.completed
         count += 1
     advise_enabled = option_overrides("Advise.json", NikkeAdvise="Yes", AdviseEpisodeViewingReward="No")
     for page in ("nikke", "advise"):
         assert run.run("AdviseMain", page, extra=advise_enabled) == SUCCEEDED, run.completed
-        assert run.page == "advise" and run.actions.count("AdviseMain") == 1
+        assert run.page == "advise" and not run.actions, run.actions
         assert "AdviseMainPageFlow" in run.completed and "AdviseChooseNikke" not in run.completed
-        assert set(run.actions) <= {"AdviseMain", "AdviseClickAdvisePage"}, run.actions
+        assert set(run.actions) <= {"AdviseClickAdvisePage"}, run.actions
         count += 1
     print("[PASS] 咨询关闭时在妮姬/咨询页就地结束；开启但没有对象时正常结束")
 
@@ -527,9 +527,9 @@ def check_behaviors(run):
                  "OutpostDailyLivesAvailable", "OutpostStaminaAvailable"}
     for page in ("outpost", "hall"):
         assert run.run("OutpostMain", page, extra=outpost_disabled, visible=available) == SUCCEEDED
-        assert run.page == "outpost" and run.actions.count("OutpostMain") == 1
+        assert run.page == "outpost" and not run.actions, run.actions
         assert not any(node in run.completed for node in outpost_disabled), run.completed
-        assert set(run.actions) <= {"OutpostMain", "__ScenePrivateClickOutpost"}, run.actions
+        assert set(run.actions) <= {"__ScenePrivateClickOutpost"}, run.actions
         count += 1
     print("[PASS] 前哨基地子任务全部关闭时不泄漏奖励、派遣或突发剧情动作")
 

@@ -21,7 +21,7 @@ from android_shell import SHELL_REVISION
 
 ROOT = builder.ROOT
 DIST = ROOT / "Android/build/ci"
-MEMBERSHIP = ROOT / "Android/build/membership"
+MOBILE = ROOT / "Android/build/mobile"
 RELEASE = builder.RELEASE
 TEST_PACKAGE_PREFIX = "com.aliothmoon.maafw.mda."
 RELEASE_TAG = re.compile(r"v([1-9]\d*\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)")
@@ -47,7 +47,7 @@ def read_config() -> dict:
         (ROOT / "Android/ci-versions.json").read_text(encoding="utf-8")
     )
     if config["shell_revision"] != SHELL_REVISION:
-        raise ValueError("CI 外壳版本与身份桥接补丁锁定版本不一致")
+        raise ValueError("CI 外壳版本与锁定版本不一致")
     release = config["release"]
     if release["package"] != f"com.aliothmoon.maafw.{release['app_id']}":
         raise ValueError("正式包名必须由外壳固定前缀与 app_id 拼成")
@@ -67,7 +67,7 @@ def metadata(run: int, attempt: int) -> dict:
         cwd=ROOT,
         text=True,
     ).strip()
-    # 版本必须能被现有 Go 会员检查识别，不能退化为 short SHA / dev。
+    # 版本必须保持 major >= 1，与正式版版本格式一致，不能退化为 short SHA / dev。
     match = re.fullmatch(r"v([1-9]\d*\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)?", tag)
     if not match:
         raise ValueError(f"找不到 major >= 1 的可用版本 tag: {tag}")
@@ -126,7 +126,7 @@ def release_metadata(tag: str) -> dict:
 def expected_package(mode: str) -> str:
     if mode == "release":
         return RELEASE["package"]
-    return TEST_PACKAGE_PREFIX + ("membershippr" if mode == "pr" else "membershiptest")
+    return TEST_PACKAGE_PREFIX + ("cipr" if mode == "pr" else "citest")
 
 
 def artifact_prefix(mode: str) -> str:
@@ -278,14 +278,6 @@ def inspect_contents(apk: Path, version: str, agent: Path, release: bool) -> dic
                 raise ValueError("测试资源不应携带自动更新源")
             if "resource/model/ocr/rec.onnx" not in pi.namelist():
                 raise ValueError("APK 缺少 OCR 模型")
-        runtime = json.loads(archive.read("assets/agent/agent-runtime.json"))
-        # descriptor 由固定外壳生成；不依赖条目嵌套形式，只检查开关实际入包。
-        text = json.dumps(runtime)
-        if (
-            '"MDA_ANDROID_MEMBERSHIP_ENABLED": "1"' not in text
-            or "MDA_IDENTITY_PROBE_ENABLED" in text
-        ):
-            raise ValueError("APK 未启用会员或误启用了原始身份探测")
     return {"agent_sha256": hashlib.sha256(embedded_agent).hexdigest()}
 
 
@@ -337,7 +329,7 @@ def verify_apk(apk: Path, tools: Path, meta: dict, mode: str) -> Path:
         )
         if not expected_cert or digest != expected_cert:
             raise ValueError("APK 签名证书与登记指纹不一致")
-    agent = MEMBERSHIP / "agent-dist/arm64-v8a/jniLibs/libgo-service.so"
+    agent = MOBILE / "agent-dist/arm64-v8a/jniLibs/libgo-service.so"
     details = inspect_contents(apk, meta["version"], agent, mode == "release")
     DIST.mkdir(parents=True, exist_ok=True)
     stem = f"{artifact_prefix(mode)}-{meta['version']}"
@@ -409,16 +401,16 @@ def main() -> None:
     if args.phase == "agent":
         if args.ndk is None:
             parser.error("agent 需要 --ndk")
-        builder.BUILD = MEMBERSHIP
+        builder.BUILD = MOBILE
         agent = builder.build_agent(args.ndk, meta["version"])
         validate_agent(agent, args.ndk, meta["version"])
         return
     if args.tools is None:
         parser.error("sign/verify 需要 --tools")
     if args.release:
-        apk = MEMBERSHIP / f"{RELEASE['artifact_prefix']}-{meta['version']}.apk"
+        apk = MOBILE / f"{RELEASE['artifact_prefix']}-{meta['version']}.apk"
     else:
-        apk = MEMBERSHIP / "MDA-android-membership-test.apk"
+        apk = MOBILE / "MDA-android-test.apk"
     if args.phase == "sign":
         sign_apk(apk, args.tools)
     else:

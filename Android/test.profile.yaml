@@ -1,4 +1,4 @@
-assets: build/membership/assets
+assets: build/mobile/assets
 include:
   - interface.json
   - README.md
@@ -8,7 +8,7 @@ include:
   - resource/**
   - locales/**
 agent:
-  sourceDir: build/membership/agent-dist
+  sourceDir: build/mobile/agent-dist
   abi: [arm64-v8a]
   runtimes:
     - location: nativeLibs
@@ -17,7 +17,6 @@ agent:
       env:
         LD_LIBRARY_PATH: "{nativeLibs}"
         MAAFW_BINARY_PATH: "{nativeLibs}"
-        MDA_ANDROID_MEMBERSHIP_ENABLED: "1"
 logs:
   include:
     - debug/**/*.log
@@ -29,6 +28,6 @@ display:
       height: 720
       dpi: 240
 app:
-  id: mda.membershiptest
-  label: MDA 会员联调版
+  id: mda.citest
+  label: MDA CI 测试版
   icon: ../assets/locales/MDA-Tiny.png

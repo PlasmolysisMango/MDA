@@ -40,7 +40,7 @@ class AndroidCITest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.meta(run, attempt)
 
-    def test_membership_version_never_falls_back_to_dev_or_hash(self):
+    def test_test_version_never_falls_back_to_dev_or_hash(self):
         for tag in ["v0.1.0", "dev", "a" * 8, "v2.5.0\nunsafe"]:
             with self.assertRaises(ValueError):
                 self.meta(tag=tag)
@@ -75,8 +75,8 @@ class AndroidCITest(unittest.TestCase):
             self.release_meta(tagged="c" * 40)
 
     def test_release_identity_is_separate_from_test_packages(self):
-        self.assertEqual(ci.expected_package("test"), "com.aliothmoon.maafw.mda.membershiptest")
-        self.assertEqual(ci.expected_package("pr"), "com.aliothmoon.maafw.mda.membershippr")
+        self.assertEqual(ci.expected_package("test"), "com.aliothmoon.maafw.mda.citest")
+        self.assertEqual(ci.expected_package("pr"), "com.aliothmoon.maafw.mda.cipr")
         self.assertEqual(ci.expected_package("release"), "com.aliothmoon.maafw.mda")
         self.assertEqual(ci.artifact_prefix("test"), "MDA-android-arm64-test")
         self.assertEqual(ci.artifact_prefix("pr"), "MDA-android-arm64-pr")
@@ -149,8 +149,6 @@ class AndroidCITest(unittest.TestCase):
         path,
         *,
         version="2.5.0-ci.1",
-        enabled="1",
-        probe=False,
         ocr=True,
         update=False,
     ):
@@ -172,13 +170,6 @@ class AndroidCITest(unittest.TestCase):
                 "libMaaAgentServer.so",
             ]:
                 archive.writestr("lib/arm64-v8a/" + lib, b"fixture 2.5.0-ci.1")
-            env = {"MDA_ANDROID_MEMBERSHIP_ENABLED": enabled}
-            if probe:
-                env["MDA_IDENTITY_PROBE_ENABLED"] = "1"
-            archive.writestr(
-                "assets/agent/agent-runtime.json",
-                json.dumps({"runtimes": [{"env": env}]}),
-            )
             archive.writestr("assets/pi.zip", pi.getvalue())
 
     def test_apk_rejects_old_agent_wrong_pi_missing_ocr_and_diagnostic_mode(self):
@@ -204,8 +195,6 @@ class AndroidCITest(unittest.TestCase):
             for changes in [
                 {"version": "old"},
                 {"ocr": False},
-                {"probe": True},
-                {"enabled": "0"},
             ]:
                 self.make_apk(apk, **changes)
                 with (
@@ -247,7 +236,7 @@ class AndroidCITest(unittest.TestCase):
                 ci.subprocess,
                 "check_output",
                 side_effect=[
-                    "package: name='com.aliothmoon.maafw.mda.membershiptest' versionCode='1' versionName='2.5.0'",
+                    "package: name='com.aliothmoon.maafw.mda.citest' versionCode='1' versionName='2.5.0'",
                     "Verified using v2 scheme (APK Signature Scheme v2): true\nSigner #1 certificate SHA-256 digest: "
                     + "a" * 64,
                 ],
@@ -314,7 +303,7 @@ class AndroidCITest(unittest.TestCase):
 
             def output(command, **kwargs):
                 if "badging" in command:
-                    return "package: name='com.aliothmoon.maafw.mda.membershiptest' versionCode='1' versionName='2.5.0'"
+                    return "package: name='com.aliothmoon.maafw.mda.citest' versionCode='1' versionName='2.5.0'"
                 self.assertEqual(command[command.index("--min-sdk-version") + 1], "24")
                 return (
                     "Verified using v2 scheme (APK Signature Scheme v2): true\nSigner #1 certificate SHA-256 digest: "

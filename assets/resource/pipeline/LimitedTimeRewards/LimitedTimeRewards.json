@@ -1,12 +1,6 @@
 {
     "LimitedTimeRewardsMain": {
         "desc": "限时奖励入口",
-        "action": {
-            "type": "Custom",
-            "param": {
-                "custom_action": "RuntimeQuotaCheck"
-            }
-        },
         "next": [
             "LimitedTimeRewardsEntryFlow",
             "[JumpBack]SceneEnterHall"

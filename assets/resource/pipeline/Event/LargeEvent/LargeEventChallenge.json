@@ -1,7 +1,13 @@
 {
     "LargeEventEnterChallenge": {
-        "desc": "大活动挑战",
+        "desc": "大活动挑战入口",
         "max_hit": 1,
+        "next": [
+            "LargeEventChallengeFlow"
+        ]
+    },
+    "LargeEventClickChallenge": {
+        "desc": "大活动挑战",
         "recognition": {
             "type": "OCR",
             "param": {
@@ -9,16 +15,10 @@
                     485,
                     536,
                     308,
-                    79
+                    97
                 ],
                 "expected": [
-                    ".*挑战.*"
-                ],
-                "replace": [
-                    [
-                        "排",
-                        "挑"
-                    ]
+                    ".*[挑排]战.*" //OCR 可能把「挑」读成「排」
                 ]
             }
         },
@@ -28,14 +28,23 @@
         "post_wait_freezes": 500,
         "timeout": 60000,
         "next": [
-            "[JumpBack]LargeEventChallengeFlow",
+            "EventChallengeStagePage",
+            "LargeEventClickChallenge",
             "LargeEventGoBack"
         ]
     },
     "LargeEventChallengeFlow": {
-        "max_hit": 1,
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "LargeEventMainPageEntered"
+                ]
+            }
+        },
         "next": [
-            "EventChallengeMain"
+            "[JumpBack]LargeEventClickChallenge",
+            "LargeEventGoBack"
         ]
     }
 }

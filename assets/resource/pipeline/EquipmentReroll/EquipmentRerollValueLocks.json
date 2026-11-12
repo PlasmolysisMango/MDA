@@ -1,0 +1,241 @@
+{
+    "EquipmentRerollValuePrepare": {
+        "desc": "冻结数值锁方案", // PrepareAction 会按方案覆盖 next（先释放多余锁、再按顺序上锁、无需变更则直接读费用），ValueVerifyReady 只是默认出口
+        "recognition": {
+            "type": "Custom",
+            "param": {
+                "custom_recognition": "EquipmentRerollValueLocksVerifyRecognition",
+                "custom_recognition_param": {
+                    "initial": true // initial=true 表示本轮首拍：Go 在此冻结整轮方案，后续 VerifyReady / VerifyChange 只做比对，不再重新规划
+                }
+            }
+        },
+        "pre_delay": 0,
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "EquipmentRerollValuePrepareAction"
+            }
+        },
+        "post_delay": 0,
+        "timeout": 5000, // 5000 是等 next 核验完成的预算；超时进 ValuePlanFailed，不带着未核验的锁继续洗
+        "rate_limit": 200,
+        "next": [
+            "EquipmentRerollValueVerifyReady"
+        ],
+        "on_error": [
+            "EquipmentRerollValuePlanFailed"
+        ]
+    },
+    "EquipmentRerollValueVerifyReady": {
+        "recognition": {
+            "type": "Custom",
+            "param": {
+                "custom_recognition": "EquipmentRerollValueLocksVerifyRecognition",
+                "custom_recognition_param": {
+                    "ready": true
+                }
+            }
+        },
+        "pre_delay": 0,
+        "post_delay": 0,
+        "timeout": 5000,
+        "next": [
+            "EquipmentRerollPrepareRerollCost",
+            "__EquipmentRerollRetryGateCostUnreadable"
+        ],
+        "on_error": [
+            "EquipmentRerollValuePlanFailed"
+        ]
+    },
+    "EquipmentRerollValueVerifyChange": {
+        "recognition": {
+            "type": "Custom",
+            "param": {
+                "custom_recognition": "EquipmentRerollValueLocksVerifyRecognition",
+                "custom_recognition_param": {}
+            }
+        },
+        "pre_delay": 0,
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "EquipmentRerollValueLocksDoneAction"
+            }
+        },
+        "post_delay": 0,
+        "timeout": 5000,
+        "next": [
+            "EquipmentRerollValuePrepare"
+        ],
+        "on_error": [
+            "EquipmentRerollValuePlanFailed"
+        ]
+    },
+    "EquipmentRerollValuePlanFailed": {
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "EquipmentRerollFailAction",
+                "custom_action_param": {
+                    "reason": "value_lock_plan"
+                }
+            }
+        }
+    },
+    "__EquipmentRerollUnlockTitle": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    600,
+                    280,
+                    90,
+                    35
+                ],
+                "expected": "效果解锁"
+            }
+        }
+    },
+    "__EquipmentRerollUnlockMessage": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    550,
+                    380,
+                    190,
+                    50
+                ],
+                "expected": "为变更所选效果.*进行解锁"
+            }
+        }
+    },
+    "__EquipmentRerollUnlockConfirmText": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    685,
+                    454,
+                    60,
+                    40
+                ],
+                "expected": "确认"
+            }
+        }
+    },
+    "EquipmentRerollValueUnlockConfirm": {
+        "desc": "免费解锁确认",
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "__EquipmentRerollUnlockConfirmText", // 放首位：点击落在「确认」上；标题与说明只负责确认这是免费解锁弹窗
+                    "__EquipmentRerollUnlockTitle",
+                    "__EquipmentRerollUnlockMessage"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "timeout": 5000, // 5000 覆盖解锁弹窗的出现等待；超时即 ValuePlanFailed，绝不盲点
+        "next": [
+            "EquipmentRerollValueVerifyChange"
+        ],
+        "on_error": [
+            "EquipmentRerollValuePlanFailed"
+        ]
+    },
+    "EquipmentRerollValueReleaseSlot1": {
+        "desc": "点击已锁词条打开免费解锁确认，绝不盲点确认",
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "__EquipmentRerollChangeEffectSlot1",
+                    "__EquipmentRerollChangeEffectTitle"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click",
+            "param": {
+                "target_offset": [
+                    30,
+                    4,
+                    -60,
+                    -8
+                ]
+            }
+        },
+        "timeout": 5000,
+        "next": [
+            "EquipmentRerollValueUnlockConfirm"
+        ],
+        "on_error": [
+            "EquipmentRerollValuePlanFailed"
+        ]
+    },
+    "EquipmentRerollValueReleaseSlot2": {
+        "desc": "点击已锁词条打开免费解锁确认，绝不盲点确认",
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "__EquipmentRerollChangeEffectSlot2",
+                    "__EquipmentRerollChangeEffectTitle"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click",
+            "param": {
+                "target_offset": [
+                    30,
+                    4,
+                    -60,
+                    -8
+                ]
+            }
+        },
+        "timeout": 5000,
+        "next": [
+            "EquipmentRerollValueUnlockConfirm"
+        ],
+        "on_error": [
+            "EquipmentRerollValuePlanFailed"
+        ]
+    },
+    "EquipmentRerollValueReleaseSlot3": {
+        "desc": "点击已锁词条打开免费解锁确认，绝不盲点确认",
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "__EquipmentRerollChangeEffectSlot3",
+                    "__EquipmentRerollChangeEffectTitle"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click",
+            "param": {
+                "target_offset": [
+                    30,
+                    4,
+                    -60,
+                    -8
+                ]
+            }
+        },
+        "timeout": 5000,
+        "next": [
+            "EquipmentRerollValueUnlockConfirm"
+        ],
+        "on_error": [
+            "EquipmentRerollValuePlanFailed"
+        ]
+    }
+}

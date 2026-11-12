@@ -1,0 +1,580 @@
+"""使用项目当前 MaaFramework DLL 离线验证纯场景导航，不连接设备。
+
+保留实际 Pipeline 的 next、JumpBack、And/Or、inverse、enabled 与 max_hit。
+只把底层画面识别替换为可控探针，把动作替换为可观察的虚拟页面变化；
+业务主流程在明确的测试边界终止。测试不评价 OCR、点击落点或实机稳定性。
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import ctypes as C
+import json
+import os
+from pathlib import Path
+import re
+import tempfile
+import time
+
+ROOT = Path(__file__).resolve().parents[2]
+P, B, I, ID, SIZE = C.c_void_p, C.c_uint8, C.c_int32, C.c_int64, C.c_uint64
+SUCCEEDED, FAILED = 3000, 4000
+RECO_NAME, ACTION_NAME = "SceneNavigationProbe", "SceneNavigationAction"
+PIXEL = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
+
+
+class ControllerCallbacks(C.Structure):
+    # ABI order: deps/include/MaaFramework/Instance/MaaCustomController.h.
+    _fields_ = [(name, P) for name in (
+        "connect", "connected", "request_uuid", "get_features", "start_app", "stop_app",
+        "screencap", "click", "swipe", "touch_down", "touch_move", "touch_up",
+        "click_key", "input_text", "key_down", "key_up", "scroll", "relative_move",
+        "shell", "inactive", "get_info",
+    )]
+
+
+def read_jsonc(path: Path):
+    """Read JSONC without touching source files or requiring extra packages."""
+    token = re.compile(r'("(?:\\.|[^"\\])*")|//[^\r\n]*|/\*[\s\S]*?\*/')
+    source = token.sub(lambda m: m.group(1) or "", path.read_text(encoding="utf-8-sig"))
+    trailing = re.compile(r'("(?:\\.|[^"\\])*")|,\s*(?=[}\]])')
+    return json.loads(trailing.sub(lambda m: m.group(1) or "", source))
+
+
+def read_nodes(resource: Path) -> dict:
+    nodes = {}
+    for path in sorted((resource / "pipeline").rglob("*.json")):
+        parsed = read_jsonc(path)
+        for name, node in parsed.items():
+            if name != "$schema":
+                if name in nodes:
+                    raise ValueError(f"重复节点：{name}")
+                nodes[name] = node
+    return nodes
+
+
+def option_overrides(task_file, **choices):
+    """Use declared PI cases so the option wiring is part of the regression."""
+    options = read_jsonc(ROOT / "assets" / "tasks" / task_file)["option"]
+    overrides = {}
+    for name, choice in choices.items():
+        case = next(case for case in options[name]["cases"] if case["name"] == choice)
+        for node, value in case.get("pipeline_override", {}).items():
+            overrides.setdefault(node, {}).update(value)
+    return overrides
+
+
+def load_api(dll_path: Path, log_dir: Path):
+    cookie = os.add_dll_directory(str(dll_path.parent))
+    maa = C.CDLL(str(dll_path))
+    signatures = {
+        "MaaVersion": (C.c_char_p, []),
+        "MaaGlobalSetOption": (B, [I, P, SIZE]),
+        "MaaResourceCreate": (P, []),
+        "MaaResourceDestroy": (None, [P]),
+        "MaaResourcePostBundle": (ID, [P, C.c_char_p]),
+        "MaaResourceWait": (I, [P, ID]),
+        "MaaResourceRegisterCustomRecognition": (B, [P, C.c_char_p, P, P]),
+        "MaaResourceRegisterCustomAction": (B, [P, C.c_char_p, P, P]),
+        "MaaCustomControllerCreate": (P, [P, P]),
+        "MaaControllerPostConnection": (ID, [P]),
+        "MaaControllerWait": (I, [P, ID]),
+        "MaaControllerDestroy": (None, [P]),
+        "MaaImageBufferSetEncoded": (B, [P, P, SIZE]),
+        "MaaStringBufferSet": (B, [P, C.c_char_p]),
+        "MaaTaskerCreate": (P, []),
+        "MaaTaskerDestroy": (None, [P]),
+        "MaaTaskerBindResource": (B, [P, P]),
+        "MaaTaskerBindController": (B, [P, P]),
+        "MaaTaskerPostTask": (ID, [P, C.c_char_p, C.c_char_p]),
+        "MaaTaskerWait": (I, [P, ID]),
+        "MaaTaskerStatus": (I, [P, ID]),
+        "MaaTaskerPostStop": (ID, [P]),
+        "MaaTaskerAddContextSink": (ID, [P, P, P]),
+    }
+    for name, (restype, argtypes) in signatures.items():
+        fn = getattr(maa, name)
+        fn.restype, fn.argtypes = restype, argtypes
+    encoded = str(log_dir).encode()
+    assert maa.MaaGlobalSetOption(1, encoded, len(encoded))
+    level = I(0)
+    assert maa.MaaGlobalSetOption(4, C.byref(level), C.sizeof(level))
+    return maa, cookie
+
+
+def reco_type(node):
+    recognition = node.get("recognition", "DirectHit")
+    return recognition.get("type", "DirectHit") if isinstance(recognition, dict) else recognition
+
+
+def probe_overrides(nodes: dict) -> dict:
+    result = {}
+    for name, node in nodes.items():
+        override = {"timeout": 150, "rate_limit": 0, "pre_delay": 0, "post_delay": 0,
+                    "pre_wait_freezes": 0, "post_wait_freezes": 0}
+        # Keep compound recognitions intact: this is what verifies the framework's
+        # And reference semantics rather than a Python model of the node graph.
+        if reco_type(node) not in {"DirectHit", "And", "Or"}:
+            override["recognition"] = {"type": "Custom", "param": {
+                "custom_recognition": RECO_NAME,
+                "custom_recognition_param": {"node": name},
+            }}
+        action = node.get("action", "DoNothing")
+        action_type = action.get("type", "DoNothing") if isinstance(action, dict) else action
+        if action_type != "DoNothing":
+            override["action"] = {"type": "Custom", "param": {
+                "custom_action": ACTION_NAME, "custom_action_param": {"node": name},
+            }}
+        result[name] = override
+    return result
+
+
+class NavigationRun:
+    def __init__(self, maa, resource, nodes):
+        self.maa, self.resource, self.nodes = maa, resource, nodes
+        self.refs, self.completed, self.actions, self.errors = [], [], [], []
+        self.failed_nodes = []
+        self.page, self.reward, self.missing = "unknown", False, set()
+        self.reward_progress = 0
+        self.reward_open = "info"
+        self.reward_delay = 0
+        self.frozen, self.extra_visible = False, set()
+        self.recognition_count = 0
+        self.controller = self.tasker = None
+        callbacks = ControllerCallbacks()
+
+        def bind(name, result_type, argtypes, function):
+            cb = C.CFUNCTYPE(result_type, *argtypes)(function)
+            self.refs.append(cb)
+            setattr(callbacks, name, C.cast(cb, P).value)
+
+        bind("connect", B, [P], lambda _: 1)
+        bind("connected", B, [P], lambda _: 1)
+        bind("request_uuid", B, [P, P], lambda _, buf: maa.MaaStringBufferSet(buf, b"scene-fixture"))
+        bind("get_features", SIZE, [P], lambda _: 0)
+        bind("screencap", B, [P, P], lambda _, buf: maa.MaaImageBufferSetEncoded(buf, PIXEL, len(PIXEL)))
+        bind("inactive", B, [P], lambda _: 1)
+        # All executable production actions are replaced; any raw controller
+        # action indicates an incomplete harness instead of touching a device.
+        bind("click", B, [I, I, P], lambda x, y, _: self.unexpected(f"raw click {x},{y}"))
+        self.refs.append(callbacks)
+
+        reco = C.CFUNCTYPE(B, P, ID, C.c_char_p, C.c_char_p, C.c_char_p, P, P, P, P, P)(self.recognize)
+        action = C.CFUNCTYPE(B, P, ID, C.c_char_p, C.c_char_p, C.c_char_p, ID, P, P)(self.act)
+        sink = C.CFUNCTYPE(None, P, C.c_char_p, C.c_char_p, P)(self.event)
+        self.refs.extend([reco, action, sink])
+        assert maa.MaaResourceRegisterCustomRecognition(resource, RECO_NAME.encode(), C.cast(reco, P), None)
+        assert maa.MaaResourceRegisterCustomAction(resource, ACTION_NAME.encode(), C.cast(action, P), None)
+        self.controller = maa.MaaCustomControllerCreate(C.byref(callbacks), None)
+        assert maa.MaaControllerWait(self.controller, maa.MaaControllerPostConnection(self.controller)) == SUCCEEDED
+        self.tasker = maa.MaaTaskerCreate()
+        assert maa.MaaTaskerBindResource(self.tasker, resource)
+        assert maa.MaaTaskerBindController(self.tasker, self.controller)
+        maa.MaaTaskerAddContextSink(self.tasker, C.cast(sink, P), None)
+
+    def unexpected(self, message):
+        self.errors.append(message)
+        return 0
+
+    def visible(self, name):
+        if name in self.missing:
+            return False
+        if name in self.extra_visible:
+            return True
+        pages = {
+            "CommonArkEntered": {"ark", "arena_reward_info"},
+            "CommonArkCornerVisible": {"arena", "interception", "simulation", "tower"},
+            "CommonArkVisible": {"hall"},
+            "CommonBellIconVisible": {"hall"},
+            "CommonMailIconVisible": {"hall"},
+            "CommonFreeStateVisible": {"hall"},
+            "CommonEnterOutpost": {"hall"},
+            "OutpostMainPageEntered": {"outpost"},
+            "ArkEnterArena": {"ark"},
+            "ArkEnterInterception": {"ark"},
+            "SimulationRoomEnterMain": {"ark"},
+            "ArkEnterTribeTower": {"ark"},
+            "RookieArenaVisible": {"arena"},
+            "SpecialArenaVisible": {"arena"},
+            "ChampionArenaVisible": {"arena"},
+            # Arena sub pages are a distinct state: the top-left title is the
+            # arena name, and only the back button can return to the hub.
+            "RookieArenaMainPageEntered": {"arena_sub"},
+            "SpecialArenaMainPageEntered": {"arena_sub"},
+            "ChampionArenaMainPageEntered": {"arena_sub"},
+            # 各子页左下角都有返回键：竞技场子页退回竞技场首页，其他方舟子页直接退回方舟；
+            # 竞技场首页自己也有返回到方舟（顶栏只写「竞技场」，只能由 ArenaMainPageEntered 认出来）。
+            "CommonGoBack": {"arena", "arena_sub", "interception", "simulation", "tower"},
+            "InterceptionMainPageEntered": {"interception"},
+            "SimulationRoomMainPageEntered": {"simulation"},
+            "TribeTowerSelectPageEntered": {"tower"},
+            "CommonClickHomeButton": {"unknown", "outpost", "arena", "interception", "simulation", "tower"},
+            "CommonClickHall": {"unknown", "outpost", "arena", "interception", "simulation", "tower"},
+            "CommonClickFreeState": {"hall"},
+            "CommonNoticeVisible": {"hall_notice"},
+            "CommonClosePage": {"hall_notice", "arena_reward_info"},
+            "CommonConfirmAction": {"arena_reward_info"},
+            "CommonConfirmReward": {"arena_reward_popup"},
+            "ArenaSpecialRewardInfoVisible": {"arena_reward_info"},
+            "ArenaSpecialRewardResultVisible": {"arena_reward_popup"},
+            "ArenaSpecialRewardArkTitleBright": {"ark"},
+            "ShopMainPageEntered": {"shop"},
+            "HallEnterShop": {"hall"},
+            "FriendManagementOnFriendPage": {"friend"},
+            "FriendManagementClickFriendEntry": {"hall"},
+            "AdviseMainPageEntered": {"advise"},
+            "AdviseNikkeMainPageEntered": {"nikke"},
+            "AdviseClickAdvisePage": {"nikke"},
+            # Both titles satisfy the historical .*商店.* OCR. Only the paid
+            # shop has the ordinary package tab required by ResumeFlow.
+            "CashShopMainPageEntered": {"shop", "cashshop"},
+            "ShopChooseOrdinaryPackage": {"cashshop"},
+            "SynchroDeviceEntered": {"synchro"},
+            "RecycleRoomEntered": {"recycle"},
+        }
+        if name == "ArenaSpecialRewardBadgeVisible":
+            return self.page == "ark" and self.reward_progress >= 50
+        return self.page in pages.get(name, set())
+
+    def recognize(self, context, task_id, name, custom, params, image, roi, trans, out_box, out_detail):
+        try:
+            self.recognition_count += 1
+            node = json.loads(params.decode())["node"]
+            if not self.visible(node):
+                return 0
+            C.cast(out_box, C.POINTER(I * 4)).contents[:] = (10, 10, 10, 10)
+            return 1
+        except Exception as exc:
+            return self.unexpected(f"recognition callback: {exc}")
+
+    def act(self, context, task_id, name, custom, params, reco_id, box, trans):
+        try:
+            node = json.loads(params.decode())["node"]
+            self.actions.append(node)
+            targets = {
+                "CommonClickHomeButton": "hall", "CommonClickHall": "hall",
+                "CommonClickFreeState": "hall_notice", "CommonClosePage": "hall",
+                "CommonClickArk": "ark",
+                "__ScenePrivateClickArk": "ark",
+                "__ScenePrivateClickOutpost": "outpost", "__SceneArkClickArena": "arena",
+                "__SceneArkClickInterception": "interception",
+                "__SceneArkClickSimulationRoom": "simulation", "__SceneArkClickTribeTower": "tower",
+                "__ScenePrivateClickShop": "shop", "__ScenePrivateClickFriend": "friend",
+                "AdviseClickAdvisePage": "advise",
+            }
+            if node == "CommonGoBack":
+                # 子页返回：竞技场子页退到竞技场首页，其他方舟子页直接退回方舟。
+                if not self.frozen:
+                    self.page = "arena" if self.page == "arena_sub" else "ark"
+            elif node == "ArenaCloseSpecialRewardInfo":
+                self.page = "ark"
+            elif node in targets:
+                if not self.frozen:
+                    self.page = targets[node]
+            elif node == "ArenaClaimSpecialReward":
+                if self.reward_open == "info":
+                    self.page = "arena_reward_info"
+                elif self.reward_open in {"slow", "expired"}:
+                    self.reward_progress = 49  # 点击闪光也会暂时遮住徽章。
+            elif node == "ArenaConfirmSpecialReward":
+                if self.reward:
+                    self.reward = False
+                    if not self.reward_delay:
+                        self.page = "arena_reward_popup"
+            elif node == "ArenaDismissSpecialReward":
+                self.page = "ark"  # 结算后直接回方舟，外层百分比暂未刷新。
+            elif node == "CommonConfirmAction":
+                pass  # 独立公共确认动作，用于核实其预算未被 And 引用消耗。
+            elif node == "CommonClickBlank":
+                pass  # Existing interception entry popup dismissal.
+            elif node in {"ArenaMain", "OutpostMain", "InterceptionMain", "SimulationRoomMain", "TribeTowerMain",
+                          "AdviseMain", "CashShopMain", "AccountNurturingMain"}:
+                pass  # RuntimeQuotaCheck boundary.
+            else:
+                return self.unexpected(f"unexpected business action: {node}")
+            return 1
+        except Exception as exc:
+            return self.unexpected(f"action callback: {exc}")
+
+    def event(self, handle, message, details, trans):
+        if message == b"Node.PipelineNode.Succeeded":
+            node = json.loads(details)["node_details"]["name"]
+            self.completed.append(node)
+            if node == "ArenaWaitSpecialRewardInfo" and self.reward_open == "slow":
+                if self.completed.count(node) == 2:
+                    self.page = "arena_reward_info"
+                    self.reward_progress = 100
+            elif node == "ArenaWaitSpecialRewardResult" and self.reward_delay:
+                self.reward_delay -= 1
+                if self.reward_delay == 0:
+                    self.page = "arena_reward_popup"
+        elif message == b"Node.PipelineNode.Failed":
+            self.failed_nodes.append(json.loads(details)["name"])
+
+    def run(self, entry, page, *, missing=(), reward=False, extra=None, frozen=False, visible=(),
+            reward_progress=100, reward_open="info", reward_delay=0):
+        self.page, self.reward, self.missing = page, reward, set(missing)
+        self.reward_progress, self.reward_open, self.reward_delay = reward_progress, reward_open, reward_delay
+        self.frozen, self.extra_visible = frozen, set(visible)
+        self.completed.clear()
+        self.actions.clear()
+        self.errors.clear()
+        self.failed_nodes.clear()
+        self.recognition_count = 0
+        overrides = probe_overrides(self.nodes)
+        for name, override in (extra or {}).items():
+            overrides[name].update(override)
+        job = self.maa.MaaTaskerPostTask(self.tasker, entry.encode(), json.dumps(overrides).encode())
+        started = time.monotonic()
+        while self.maa.MaaTaskerStatus(self.tasker, job) in (1000, 2000):
+            if time.monotonic() - started > 5:
+                self.maa.MaaTaskerWait(self.tasker, self.maa.MaaTaskerPostStop(self.tasker))
+                raise AssertionError(f"导航未在5秒内结束：{entry}; {self.completed[-20:]}")
+            time.sleep(0.005)
+        status = self.maa.MaaTaskerWait(self.tasker, job)
+        assert not self.errors, self.errors
+        if status == SUCCEEDED:
+            assert not self.failed_nodes, (entry, "成功流程触发了节点失败", self.failed_nodes)
+        return status
+
+    def close(self):
+        if self.tasker:
+            self.maa.MaaTaskerDestroy(self.tasker)
+        if self.controller:
+            self.maa.MaaControllerDestroy(self.controller)
+
+
+def check_behaviors(run):
+    count = 0
+    for entry, page in (("SceneEnterHall", "hall"), ("SceneEnterArk", "ark"),
+                        ("SceneEnterOutpost", "outpost"), ("SceneEnterArena", "arena"),
+                        ("SceneEnterInterception", "interception"),
+                        ("SceneEnterSimulationRoom", "simulation"), ("SceneEnterTribeTower", "tower"),
+                        ("SceneEnterShop", "shop"), ("SceneEnterFriend", "friend")):
+        assert run.run(entry, page) == SUCCEEDED, (entry, run.completed)
+        assert not run.actions, (entry, run.actions)
+        assert run.page == page
+        count += 1
+    print("[PASS] 9个纯导航入口已在目标页时不点击、不执行业务")
+
+    for entry, parent, target in (("SceneEnterOutpost", "hall", "outpost"),
+                                   ("SceneEnterArena", "ark", "arena"),
+                                   ("SceneEnterInterception", "ark", "interception"),
+                                   ("SceneEnterSimulationRoom", "ark", "simulation"),
+                                   ("SceneEnterTribeTower", "ark", "tower"),
+                                   ("SceneEnterShop", "hall", "shop"),
+                                   ("SceneEnterFriend", "hall", "friend")):
+        assert run.run(entry, parent) == SUCCEEDED, (entry, run.completed, run.actions)
+        assert run.page == target and len(run.actions) == 1, (entry, run.actions)
+        count += 1
+    print("[PASS] 父页进入只导航，And引用没有执行原Enter业务后续")
+
+    assert run.run("SceneEnterArena", "unknown") == SUCCEEDED, (run.completed, run.actions)
+    assert run.page == "arena"
+    count += 1
+    print("[PASS] 未知页面经大厅和方舟恢复目标")
+
+    # 误入新人/特殊/冠军竞技场子页时，只能用左下角返回键退回首页；缺了这条
+    # 逃生路径，子页上所有首页识别必然失败，整条任务会等到导航超时才判失败。
+    assert run.run("SceneEnterArena", "arena_sub") == SUCCEEDED, (run.completed, run.actions)
+    assert run.page == "arena" and run.actions == ["CommonGoBack"], run.actions
+    assert "__SceneArkEscapeSubPage" in run.completed, run.completed
+    count += 1
+    print("[PASS] 误入竞技场子页时点返回回到竞技场首页，不再以超时判失败")
+
+    # 模拟室/拦截战/无限之塔同样在方舟层级下，返回键直达方舟；缺这条逃生路径
+    # 就会绕回大厅跑完整登录恢复链（实测单次多耗 17~36 秒）。
+    for page in ("simulation", "interception", "tower"):
+        assert run.run("SceneEnterArk", page) == SUCCEEDED, (page, run.completed, run.actions)
+        assert run.page == "ark" and run.actions == ["CommonGoBack"], (page, run.actions)
+        assert "__SceneArkEscapeSubPage" in run.completed, (page, run.completed)
+        count += 1
+    print("[PASS] 方舟子页经返回键退回方舟，不再绕大厅")
+
+    # 竞技场首页顶栏只写「竞技场」，子页哨兵认不出；漏了 ArenaMainPageEntered 就会
+    # 退回大厅（实测 16:51 那次多耗 17 秒）。
+    assert run.run("SceneEnterArk", "arena") == SUCCEEDED, (run.completed, run.actions)
+    assert run.page == "ark" and run.actions == ["CommonGoBack"], run.actions
+    assert "__SceneArkEscapeSubPage" in run.completed, run.completed
+    count += 1
+    print("[PASS] 竞技场首页经返回键退回方舟，不再绕大厅")
+
+    assert run.run("SceneEnterInterception", "ark", missing={"ArkEnterInterception"}) == FAILED
+    assert not run.actions and run.recognition_count < 50000
+    count += 1
+    print("[PASS] 父页目标入口缺失有界失败，没有反复返回父页空转")
+
+    for entry, parent, click, limit in (
+        ("SceneEnterArk", "hall", "__ScenePrivateClickArk", 3),
+        ("SceneEnterOutpost", "hall", "__ScenePrivateClickOutpost", 6),
+        ("SceneEnterArena", "ark", "__SceneArkClickArena", 3),
+        ("SceneEnterInterception", "ark", "__SceneArkClickInterception", 3),
+        ("SceneEnterSimulationRoom", "ark", "__SceneArkClickSimulationRoom", 3),
+        ("SceneEnterTribeTower", "ark", "__SceneArkClickTribeTower", 3),
+    ):
+        assert run.run(entry, parent, frozen=True) == FAILED, (entry, run.completed)
+        assert run.page == parent and run.actions.count(click) == limit, (entry, run.actions)
+        if entry == "SceneEnterInterception":
+            assert run.actions == [click] * 3 + ["CommonClickBlank"] * 3, run.actions
+        else:
+            assert run.actions == [click] * limit, (entry, run.actions)
+        count += 1
+    print("[PASS] 画面不推进时入口点击有界：方舟/方舟模块3次，前哨基地6次，最终失败")
+    print("[PASS] 拦截战入场点击无效时仅3次入口点击+3次空白点击，不耗尽公共预算")
+
+    # Stop at business boundaries. The real Main and scene navigation are still
+    # executed, while no game business beyond the boundary is modeled here.
+    assert run.run("InterceptionMain", "hall", extra={"InterceptionBattleFlow": {"next": []}}) == SUCCEEDED
+    assert run.actions.count("InterceptionMain") == 1, run.actions
+    assert run.page == "interception" and "InterceptionBattleFlow" in run.completed
+    count += 1
+    print("[PASS] Main跨场景恢复后额度动作只执行一次")
+
+    claim_expected = run.nodes["ArenaSpecialRewardBadgeVisible"]["recognition"]["param"]["expected"]
+    claim_pattern = re.compile("|".join(claim_expected))
+    assert all(claim_pattern.fullmatch(text) for text in ("50%", "94%", "100％")), claim_expected
+    assert not any(claim_pattern.search(text) for text in ("0%", "49%", "101%", "17小时")), claim_expected
+    count += 1
+    print("[PASS] 竞技场累积奖励只接受 50%–100%，排除赛季倒计时")
+
+    disabled = option_overrides("Arena.json", ArenaEnterRookieArena="No", ArenaEnterSpecialArena="No",
+                                ArenaEnterChampionArena="No")
+    assert run.run("ArenaMain", "hall", reward=True, reward_progress=50,
+                   reward_open="slow", reward_delay=7, extra=disabled) == SUCCEEDED, run.completed
+    assert run.actions == ["ArenaMain", "__ScenePrivateClickArk", "ArenaClaimSpecialReward", "ArenaConfirmSpecialReward",
+                           "ArenaDismissSpecialReward", "__SceneArkClickArena"], run.actions
+    assert run.completed.count("ArenaWaitSpecialRewardInfo") == 2, run.completed
+    assert run.completed.count("ArenaWaitSpecialRewardResult") == 7, run.completed
+    assert not any(n in run.completed for n in disabled), run.completed
+    assert run.page == "arena" and "ArenaCornerFlow" in run.completed
+    count += 1
+    print("[PASS] 达到 50% 后等待慢开窗和迟到的结算，回方舟后继续进场")
+
+    assert run.run("ArenaMain", "ark", extra=disabled) == SUCCEEDED, run.completed
+    assert run.page == "arena"
+    assert run.actions == ["ArenaMain", "ArenaClaimSpecialReward", "ArenaConfirmSpecialReward",
+                           "ArenaCloseSpecialRewardInfo", "__SceneArkClickArena"], run.actions
+    assert run.completed.count("ArenaWaitSpecialRewardResult") == 7, run.completed
+    count += 1
+    print("[PASS] 空奖详情保留领取按钮时只点一次，等完结算窗口再关闭")
+
+    assert run.run("ArenaMain", "ark", reward_progress=49, extra=disabled) == SUCCEEDED, run.completed
+    assert run.actions == ["ArenaMain", "__SceneArkClickArena"], run.actions
+    count += 1
+    print("[PASS] 低于 50% 时直接进场")
+
+    assert run.run("ArenaMain", "ark", reward_open="expired", extra=disabled) == SUCCEEDED, run.completed
+    assert run.actions == ["ArenaMain", "ArenaClaimSpecialReward", "__SceneArkClickArena"], run.actions
+    assert "ArenaSpecialRewardBadgeGone" in run.completed, run.completed
+    count += 1
+    print("[PASS] 点击时领取资格已失效，在方舟正常跳过")
+
+    assert run.run("ArenaMain", "ark", reward_open="blocked", extra=disabled) == FAILED, run.completed
+    assert run.actions == ["ArenaMain", "ArenaClaimSpecialReward"], run.actions
+    assert run.failed_nodes == ["ArenaClaimSpecialReward"], run.failed_nodes
+    count += 1
+    print("[PASS] 徽章持续可领且始终没开窗时报告失败，开窗只点一次")
+
+    reward_disabled = {**disabled, **option_overrides("Arena.json", SpecialReward="No")}
+    assert run.run("ArenaMain", "ark", reward=True, extra=reward_disabled) == SUCCEEDED
+    assert run.page == "arena" and run.reward
+    assert run.actions == ["ArenaMain", "__SceneArkClickArena"], run.actions
+    count += 1
+    print("[PASS] 关闭累积奖励选项时直接进入竞技场，不开窗、不领取")
+
+    budget = {"ArenaSpecialRewardArkVisible": {"next": ["CommonConfirmAction"]},
+              "CommonConfirmAction": {"max_hit": 1, "next": []}}
+    assert run.run("ArenaClaimSpecialReward", "ark", reward=True, extra=budget,
+                   visible={"CommonConfirmAction"}) == SUCCEEDED, run.completed
+    assert run.page == "ark" and run.visible("ArenaSpecialRewardBadgeVisible")
+    assert run.actions == ["ArenaClaimSpecialReward", "ArenaConfirmSpecialReward",
+                           "ArenaDismissSpecialReward", "CommonConfirmAction"], run.actions
+    count += 1
+    print("[PASS] 领奖后百分比仍可见；专属确认只借用识别，不占用公共确认动作预算")
+
+    advise_disabled = option_overrides("Advise.json", NikkeAdvise="No")
+    for page in ("nikke", "advise"):
+        assert run.run("AdviseMain", page, extra=advise_disabled) == SUCCEEDED, run.completed
+        assert run.page == page and run.actions == ["AdviseMain"], run.actions
+        assert "AdviseEnterAdvisePage" not in run.completed
+        assert "AdviseMainPageFlow" not in run.completed
+        count += 1
+    advise_enabled = option_overrides("Advise.json", NikkeAdvise="Yes", AdviseEpisodeViewingReward="No")
+    for page in ("nikke", "advise"):
+        assert run.run("AdviseMain", page, extra=advise_enabled) == SUCCEEDED, run.completed
+        assert run.page == "advise" and run.actions.count("AdviseMain") == 1
+        assert "AdviseMainPageFlow" in run.completed and "AdviseChooseNikke" not in run.completed
+        assert set(run.actions) <= {"AdviseMain", "AdviseClickAdvisePage"}, run.actions
+        count += 1
+    print("[PASS] 咨询关闭时在妮姬/咨询页就地结束；开启但没有对象时正常结束")
+
+    cash_boundary = {"CashShopCornerFlow": {"next": []}}
+    assert run.run("CashShopResumeFlow", "shop", extra=cash_boundary) == FAILED
+    assert "CashShopCornerFlow" not in run.completed and not run.actions
+    count += 1
+    assert run.run("CashShopResumeFlow", "cashshop", extra=cash_boundary) == SUCCEEDED
+    assert "CashShopCornerFlow" in run.completed and not run.actions
+    count += 1
+    print("[PASS] 付费商店复用同时要求标题与普通礼包，百货标题单独命中不放行")
+
+    outpost_disabled = option_overrides("Outpost.json", DefenseRewards="No", BulletinBoard="No", BriefEncounter="No")
+    # These leaf probes would match if the declared options did not disable the
+    # corresponding task entries; callback failure would expose a leaked action.
+    available = {"OutpostEnterDefenseRewards", "OutpostEnterBulletinBoard",
+                 "OutpostDailyLivesAvailable", "OutpostStaminaAvailable"}
+    for page in ("outpost", "hall"):
+        assert run.run("OutpostMain", page, extra=outpost_disabled, visible=available) == SUCCEEDED
+        assert run.page == "outpost" and run.actions.count("OutpostMain") == 1
+        assert not any(node in run.completed for node in outpost_disabled), run.completed
+        assert set(run.actions) <= {"OutpostMain", "__ScenePrivateClickOutpost"}, run.actions
+        count += 1
+    print("[PASS] 前哨基地子任务全部关闭时不泄漏奖励、派遣或突发剧情动作")
+
+    for entry, page, boundary in (
+        ("AccountNurturingSynchroDeviceEnhance", "outpost", None),
+        ("AccountNurturingRecycleRoomUpgrade", "outpost", None),
+        ("AccountNurturingSynchroDeviceEnhance", "synchro", "SynchroDeviceEnhanceFlow"),
+        ("AccountNurturingRecycleRoomUpgrade", "recycle", "RecycleRoomUpgradeFlow"),
+    ):
+        extra = {boundary: {"next": []}} if boundary else None
+        assert run.run(entry, page, extra=extra) == SUCCEEDED, (entry, run.completed)
+        assert run.page == page and not run.actions, (entry, run.actions)
+        assert "SceneEnterHall" not in run.completed and "SceneEnterOutpost" not in run.completed
+        count += 1
+    print("[PASS] 同步器与循环室养成从前哨基地/目标子页直接复用，不绕大厅")
+    return count
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--resource", type=Path, default=ROOT / "assets" / "resource")
+    parser.add_argument("--dll", type=Path, default=ROOT / "deps" / "bin" / "MaaFramework.dll")
+    args = parser.parse_args()
+    nodes = read_nodes(args.resource)
+    required = {"SceneEnterHall", "SceneEnterArk", "SceneEnterOutpost", "SceneEnterArena",
+                "SceneEnterInterception", "SceneEnterSimulationRoom", "SceneEnterTribeTower",
+                "SceneEnterShop", "SceneEnterFriend"}
+    assert not required - nodes.keys(), f"缺少场景入口：{sorted(required - nodes.keys())}"
+    log_dir = Path(tempfile.mkdtemp(prefix="mda-scene-navigation-"))
+    maa, cookie = load_api(args.dll, log_dir)
+    print(f"MaaFramework {maa.MaaVersion().decode()}；日志：{log_dir}")
+    resource, runner = None, None
+    try:
+        resource = maa.MaaResourceCreate()
+        assert maa.MaaResourceWait(resource, maa.MaaResourcePostBundle(resource, str(args.resource).encode())) == SUCCEEDED
+        runner = NavigationRun(maa, resource, nodes)
+        count = check_behaviors(runner)
+        print(f"汇总：{count}组真实框架行为验证通过；所有输入均由虚拟控制器截获。")
+    finally:
+        if runner:
+            runner.close()
+        if resource:
+            maa.MaaResourceDestroy(resource)
+        cookie.close()
+
+
+if __name__ == "__main__":
+    main()

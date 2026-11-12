@@ -7,14 +7,30 @@ on:
     paths:
       - ".github/workflows/check.yml"
       - "assets/**"
+      - "tools/schema/**"
+      - "scripts/check-theme-sync.mjs"
+      - "scripts/check-desc.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "maatools.config.mts"
       - "**.py"
+      - "pyproject.toml"
+      - "uv.lock"
   pull_request:
     branches:
       - "**"
     paths:
       - ".github/workflows/check.yml"
       - "assets/**"
+      - "tools/schema/**"
+      - "scripts/check-theme-sync.mjs"
+      - "scripts/check-desc.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "maatools.config.mts"
       - "**.py"
+      - "pyproject.toml"
+      - "uv.lock"
   workflow_dispatch:
 
 jobs:
@@ -36,12 +52,28 @@ jobs:
           npm ci
           npx @nekosu/maa-tools check
 
-      - name: Install maafw
+      - name: Check event theme consistency
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade maafw --pre
+          npm run test:theme
+          npm run check:theme
+
+      - name: Check pipeline desc style
+        run: npm run check:desc
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v9.0.0
+
+      - name: Test event template preparation
+        run: uv run --frozen --only-group schema --with opencv-python python .agents/skills/mda-event-update/scripts/test_prepare_templates.py
+
+      - name: Test generated Traditional Chinese resources
+        run: uv run --frozen --only-group install python -m unittest discover -s tools/verify -p 'test_generate_zh_tw.py'
 
       - name: Validate JSON Schema
         run: |
-          python -m pip install jsonschema==4.26.0 referencing==0.37.0
-          python tools/validate_schema.py --resource-dirs assets/resource --exclude-dirs assets/resource/announcement --interface-files assets/interface.json
+          uv run --frozen --only-group schema python tools/validate_schema.py --resource-dirs assets/resource --exclude-dirs assets/resource/announcement --interface-files assets/interface.json --task-dirs assets/tasks

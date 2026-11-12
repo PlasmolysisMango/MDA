@@ -18,6 +18,7 @@
         },
         "next": [
             "LargeEventEnterMainPage",
+            "[JumpBack]CommonClickEventChange",
             "CommonEndTask"
         ]
     },
@@ -27,19 +28,28 @@
             "type": "TemplateMatch",
             "param": {
                 "roi": [
-                    824,
+                    799,
                     571,
-                    145,
+                    170,
                     68
                 ],
                 "template": [
-                    "Common/RedDot.png" //占位，应该去task页面修改
+                    "LargeEvent/MARIAn/MARIAnLogo.png" //当前活动，随最新主题更新
                 ]
             }
         },
         "action": {
-            "type": "Click"
+            "type": "Click",
+            "param": {
+                "target_offset": [
+                    30,
+                    0,
+                    0,
+                    0
+                ]
+            }
         },
+        "post_delay": 1500, //点完固定等 1.5 秒再重判：游戏要 1 秒左右才切到加载页，否则会对着同一个入口连点两次
         "next": [
             "LargeEventMainPageFlow",
             "LargeEventEnterMainPage"
@@ -58,25 +68,17 @@
                 ],
                 "expected": [
                     ".*动地.*" //活动地区
-                ]
+                ],
+                "only_rec": true //避免 batch OCR 降采样后 det 读不出小字
             }
         },
-        "pre_wait_freezes": {
+        "post_wait_freezes": {
             "time": 1000,
             "target": [
                 446,
                 539,
                 389,
                 82
-            ]
-        },
-        "post_wait_freezes": {
-            "time": 2000,
-            "target": [
-                1250,
-                112,
-                30,
-                107
             ]
         }
     },
@@ -90,7 +92,7 @@
                 ]
             }
         },
-        "pre_wait_freezes": {
+        "post_wait_freezes": {
             "time": 1000,
             "target": [
                 446,
@@ -99,22 +101,117 @@
                 82
             ]
         },
-        "action": "DoNothing",
-        "post_wait_freezes": {
-            "time": 2000,
-            "target": [
-                1250,
-                112,
-                30,
-                107
-            ]
-        },
         "next": [
             "[JumpBack]LargeEventEnterLoginStamp",
             "[JumpBack]LargeEventEnterChallenge",
             "[JumpBack]LargeEventEnterStory",
+            "[JumpBack]LargeEventMiniGame",
             "[JumpBack]LargeEventEnterMission",
+            "[JumpBack]LargeEventEnterPass",
             "CommonEndTask"
+        ]
+    },
+    "LargeEventEnterPass": {
+        "desc": "活动PASS入口",
+        "max_hit": 1,
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    1180,
+                    20,
+                    100,
+                    92
+                ],
+                "template": [
+                    "Common/RedDot.png",
+                    "Common/RedDotSP.png"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click",
+            "param": {
+                "target_offset": [
+                    -40,
+                    25,
+                    0,
+                    0
+                ]
+            }
+        },
+        "next": [
+            "LargeEventPassFlow"
+        ]
+    },
+    "LargeEventPassFlow": {
+        "desc": "活动PASS领取流程",
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "DailyRewardsPassClaimAllButtonVisible"
+                ]
+            }
+        },
+        "next": [
+            "[JumpBack]LargeEventPassEnterTask",
+            "[JumpBack]DailyRewardsPassClaimAll",
+            "CommonConfirmReward",
+            "[JumpBack]LargeEventPassEnterReward",
+            "[JumpBack]CommonClosePage",
+            "CommonEndTask"
+        ]
+    },
+    "LargeEventPassEnterTask": {
+        "desc": "切到PASS任务页签",
+        "max_hit": 1,
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    695,
+                    210,
+                    80,
+                    45
+                ],
+                "expected": [
+                    "任务"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_wait_freezes": 500
+    },
+    "LargeEventPassEnterReward": {
+        "desc": "切到PASS奖励页签",
+        "max_hit": 1,
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    510,
+                    210,
+                    80,
+                    45
+                ],
+                "expected": [
+                    "奖励"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_wait_freezes": 500
+    },
+    "LargeEventMiniGame": {
+        "desc": "大活动小游戏",
+        "max_hit": 1,
+        "next": [
+            "CommonEndTask" //当前活动暂未适配小游戏，随最新主题更新
         ]
     },
     "LargeEventGoBack": {

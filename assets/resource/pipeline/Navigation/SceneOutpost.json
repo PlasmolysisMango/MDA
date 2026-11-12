@@ -1,0 +1,48 @@
+{
+    "SceneEnterOutpost": {
+        "desc": "只恢复前哨基地页面，不执行奖励、养成或红点业务",
+        "timeout": 10000,
+        "next": [
+            "OutpostMainPageEntered",
+            "__ScenePrivateClickOutpost",
+            "[JumpBack]__ScenePrivateRecoverHallForOutpost"
+        ]
+    },
+    "__ScenePrivateClickOutpost": {
+        "desc": "从大厅点击前哨基地，复用既有按钮识别",
+        "max_hit": 6,
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "CommonEnterOutpost",
+                    "CommonArkVisible"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "timeout": 10000,
+        "next": [
+            "OutpostMainPageEntered",
+            "__ScenePrivateClickOutpost",
+            "[JumpBack]CommonSkipPlot"
+        ]
+    },
+    "__ScenePrivateRecoverHallForOutpost": {
+        "desc": "不在前哨时回大厅",
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "CommonArkVisible"
+                ]
+            }
+        },
+        "inverse": true, // CommonArkVisible 不命中时才回大厅；父页入口缺失就让外层等到超时，不反复空转
+        "next": [
+            "SceneEnterHall"
+        ]
+    }
+}

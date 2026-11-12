@@ -2,13 +2,56 @@
     "ArenaMain": {
         "next": [
             "[JumpBack]ArenaClaimSpecialReward",
-            "ArkEnterArena",
-            "[JumpBack]CommonEnterArk"
+            "ArenaCornerFlow",
+            "[JumpBack]ArenaPrepareEntry",
+            "[JumpBack]SceneEnterArena"
+        ]
+    },
+    "ArenaPrepareEntry": {
+        "desc": "入场前先回方舟", // 直接场景导航进竞技场会漏掉累积奖励，所以先回方舟再回 Main 领奖
+        "max_hit": 1,
+        "recognition": {
+            "type": "Or",
+            "param": {
+                "any_of": [
+                    "CommonArkEntered",
+                    "ArenaMainPageEntered"
+                ]
+            }
+        },
+        "inverse": true, // 已在方舟或竞技场首页时不走这条，避免无谓绕路
+        "next": [
+            "SceneEnterArk"
         ]
     },
     "ArenaClaimSpecialReward": {
-        "desc": "领取累积奖励",
-        "max_hit": 1,
+        "desc": "累积奖励入口",
+        "max_hit": 1, // 领取后方舟徽章可能仍显示旧进度
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "ArenaSpecialRewardBadgeVisible",
+                    "ArenaSpecialRewardArkVisible"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "next": [
+            "ArenaConfirmSpecialReward",
+            "[JumpBack]ArenaWaitSpecialRewardInfo",
+            "ArenaSpecialRewardBadgeGone"
+        ]
+    },
+    "ArenaWaitSpecialRewardInfo": {
+        "desc": "竞技场资讯出现前的过渡",
+        "max_hit": 4, // 点击闪光会短暂遮住百分比，先轮询资讯再判断徽章消失
+        "pre_delay": 0,
+        "post_delay": 1000
+    },
+    "ArenaSpecialRewardBadgeVisible": {
         "recognition": {
             "type": "OCR",
             "param": {
@@ -19,20 +62,163 @@
                     25
                 ],
                 "expected": [
-                    "^[0-9]"
+                    "^([5-9][0-9]|100)[%％]$" // 低于 50% 时不会打开竞技场资讯
+                ]
+            }
+        }
+    },
+    "ArenaSpecialRewardBadgeGone": {
+        "desc": "奖励入口已失效",
+        "recognition": {
+            "type": "Or",
+            "param": {
+                "any_of": [
+                    "ArenaSpecialRewardBadgeVisible"
+                ]
+            }
+        },
+        "inverse": true,
+        "next": [
+            "ArenaConfirmSpecialReward",
+            "ArenaSpecialRewardArkVisible"
+        ]
+    },
+    "ArenaSpecialRewardInfoVisible": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    580,
+                    108,
+                    120,
+                    43
+                ],
+                "expected": [
+                    "^竞技场资讯$"
+                ]
+            }
+        }
+    },
+    "ArenaConfirmSpecialReward": {
+        "desc": "累积奖励领取按钮",
+        "max_hit": 1, // 资讯内两项奖励为零时仍可能显示领取按钮
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "CommonConfirmAction",
+                    "ArenaSpecialRewardInfoVisible"
                 ]
             }
         },
         "action": {
             "type": "Click"
         },
-        "post_wait_freezes": 500,
         "next": [
-            "[JumpBack]CommonConfirmAction",
-            "[JumpBack]CommonConfirmReward",
-            "ArenaClaimSpecialReward",
-            "CommonEndTask"
+            "ArenaDismissSpecialReward",
+            "[JumpBack]ArenaWaitSpecialRewardResult",
+            "ArenaCloseSpecialRewardInfo",
+            "ArenaSpecialRewardArkVisible"
         ]
+    },
+    "ArenaWaitSpecialRewardResult": {
+        "desc": "累积奖励结算观察窗口",
+        "max_hit": 7, // 11 月 8 日点领取后约 6.4 秒才首次识别到结算
+        "pre_delay": 0,
+        "post_delay": 1000
+    },
+    "ArenaSpecialRewardResultVisible": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    594,
+                    247,
+                    90,
+                    53
+                ],
+                "expected": [
+                    "^REWARD$"
+                ]
+            }
+        }
+    },
+    "ArenaDismissSpecialReward": {
+        "desc": "累积奖励结算弹窗",
+        "max_hit": 1,
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "CommonConfirmReward",
+                    "ArenaSpecialRewardResultVisible"
+                ]
+            }
+        },
+        "pre_wait_freezes": 500,
+        "action": {
+            "type": "Click"
+        },
+        "next": [
+            "ArenaSpecialRewardArkVisible",
+            "ArenaCloseSpecialRewardInfo"
+        ]
+    },
+    "ArenaCloseSpecialRewardInfo": {
+        "desc": "竞技场资讯关闭按钮",
+        "max_hit": 1,
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "CommonClosePage",
+                    "ArenaSpecialRewardInfoVisible"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "next": [
+            "ArenaDismissSpecialReward",
+            "ArenaSpecialRewardArkVisible"
+        ]
+    },
+    "ArenaSpecialRewardArkVisible": {
+        "desc": "无遮罩的方舟",
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "CommonArkEntered",
+                    "ArenaSpecialRewardArkTitleBright"
+                ]
+            }
+        }
+    },
+    "ArenaSpecialRewardArkTitleBright": {
+        "recognition": {
+            "type": "ColorMatch",
+            "param": {
+                "roi": [
+                    17,
+                    18,
+                    26,
+                    17
+                ],
+                "lower": [
+                    180,
+                    180,
+                    180
+                ],
+                "upper": [
+                    255,
+                    255,
+                    255
+                ],
+                "count": 30 // 存档图中方舟标题亮像素约 66 个，两种奖励弹窗覆盖时均为零
+            }
+        }
     },
     "ArkEnterArena": {
         "desc": "进入竞技场",
@@ -126,7 +312,7 @@
                     22
                 ],
                 "expected": [
-                    "快速战斗"
+                    ".*快速.*" //快速战斗
                 ]
             }
         }
@@ -141,9 +327,29 @@
                 ]
             }
         },
+        "timeout": 60000,
         "next": [
+            "BattleEntered",
+            "[JumpBack]CommonPurchaseGemBlocked",
             "[JumpBack]RookieArenaClickQuickBattleToggle",
-            "BattleEntryFlow"
+            "[JumpBack]ArenaConfirmFreeBattle"
         ]
+    },
+    "ArenaConfirmFreeBattle": {
+        "desc": "确认发起免费战斗", //只在出击确认面板内点“进入战斗”；面板一关就收手，绝不回头点对手列表里的付费挑战
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "BattleMainVisible", // 放首位：命中框就是「进入战斗」按钮，点击不会落到面板外同区域的对手列表行
+                    "ArenaFreeBattleVisible",
+                    "BattleAvailable"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_wait_freezes": 500
     }
 }

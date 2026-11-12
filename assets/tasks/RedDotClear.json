@@ -5,6 +5,9 @@
             "label": "$task.RedDotClear.label",
             "entry": "RedDotClearMain",
             "description": "$task.RedDotClear.description",
+            "group": [
+                "utility"
+            ],
             "option": [
                 "RedDotClearCashShop",
                 "RedDotClearNotice",
@@ -14,10 +17,8 @@
                 "RedDotClearCostumeGacha",
                 "RedDotClearRhythmGame",
                 "RedDotClearBlaBla",
-                "RedDotClearArcade"
-            ],
-            "group": [
-                "utility"
+                "RedDotClearArcade",
+                "RedDotClearCommandCenter"
             ]
         }
     ],
@@ -216,6 +217,28 @@
                     "name": "No",
                     "pipeline_override": {
                         "RedDotClearArcade": {
+                            "enabled": false
+                        }
+                    }
+                }
+            ]
+        },
+        "RedDotClearCommandCenter": {
+            "type": "switch",
+            "label": "$option.RedDotClearCommandCenter.label",
+            "cases": [
+                {
+                    "name": "Yes",
+                    "pipeline_override": {
+                        "RedDotClearCommandCenter": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "No",
+                    "pipeline_override": {
+                        "RedDotClearCommandCenter": {
                             "enabled": false
                         }
                     }

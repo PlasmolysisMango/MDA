@@ -1,0 +1,68 @@
+{
+    "task": [
+        {
+            "name": "FriendManagement",
+            "label": "$task.FriendManagement.label",
+            "entry": "FriendManagementMain",
+            "description": "$task.FriendManagement.description",
+            "group": [
+                "utility"
+            ],
+            "option": [
+                "FriendManagementDeleteInactiveFriends",
+                "FriendManagementAcceptFriendRequests"
+            ],
+            "doc": [
+                "$task.FriendManagement.doc"
+            ]
+        }
+    ],
+    "option": {
+        "FriendManagementDeleteInactiveFriends": {
+            "type": "switch",
+            "label": "$option.FriendManagementDeleteInactiveFriends.label",
+            "cases": [
+                {
+                    "name": "Yes",
+                    "pipeline_override": {
+                        "FriendManagementDeleteInactiveFriends": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "No",
+                    "pipeline_override": {
+                        "FriendManagementDeleteInactiveFriends": {
+                            "enabled": false
+                        }
+                    }
+                }
+            ],
+            "default_case": "Yes"
+        },
+        "FriendManagementAcceptFriendRequests": {
+            "type": "switch",
+            "label": "$option.FriendManagementAcceptFriendRequests.label",
+            "cases": [
+                {
+                    "name": "Yes",
+                    "pipeline_override": {
+                        "FriendManagementAcceptFriendRequests": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "No",
+                    "pipeline_override": {
+                        "FriendManagementAcceptFriendRequests": {
+                            "enabled": false
+                        }
+                    }
+                }
+            ],
+            "default_case": "Yes"
+        }
+    }
+}

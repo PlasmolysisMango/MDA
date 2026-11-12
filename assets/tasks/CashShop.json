@@ -5,12 +5,12 @@
             "label": "$task.CashShop.label",
             "entry": "CashShopMain",
             "description": "$task.CashShop.description",
-            "option": [
-                "CashShopFreePackage",
-                "StepUpPackage"
-            ],
             "group": [
                 "daily"
+            ],
+            "option": [
+                "CashShopFreePackage",
+                "CashShopNetworkRetry"
             ]
         }
     ],
@@ -37,14 +37,15 @@
                 }
             ]
         },
-        "StepUpPackage": {
+        "CashShopNetworkRetry": {
             "type": "switch",
-            "label": "$option.StepUpPackage.label",
+            "label": "$option.CashShopNetworkRetry.label",
+            "description": "$option.CashShopNetworkRetry.description",
             "cases": [
                 {
                     "name": "Yes",
                     "pipeline_override": {
-                        "ShopPurchaseStepUpPackage": {
+                        "CashShopRetryNetworkError": {
                             "enabled": true
                         }
                     }
@@ -52,12 +53,13 @@
                 {
                     "name": "No",
                     "pipeline_override": {
-                        "ShopPurchaseStepUpPackage": {
+                        "CashShopRetryNetworkError": {
                             "enabled": false
                         }
                     }
                 }
-            ]
+            ],
+            "default_case": "Yes"
         }
     }
 }

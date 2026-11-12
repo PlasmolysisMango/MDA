@@ -19,7 +19,7 @@
         },
         "next": [
             "DailyLoginClickEntry",
-            "[JumpBack]CoordinatedOperationsSlideBanner",
+            "[JumpBack]CommonSwipeBanner",
             "CommonEndTask"
         ]
     },
@@ -44,10 +44,23 @@
         },
         "post_wait_freezes": 2000,
         "next": [
+            "DailyLoginRewardsFlow"
+        ]
+    },
+    "DailyLoginRewardsFlow": {
+        "desc": "登录奖励页面处理，供主动进入和登录弹出复用",
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "DailyLoginClaimAllButtonVisible"
+                ]
+            }
+        },
+        "next": [
             "[JumpBack]DailyLoginClaimRewards",
-            "[JumpBack]CommonConfirmReward",
-            "CommonClosePage",
-            "CommonGoBack"
+            "DailyLoginReturnHall",
+            "[JumpBack]CommonConfirmReward"
         ]
     },
     "DailyLoginClaimRewards": {
@@ -83,21 +96,72 @@
             }
         }
     },
-    "DailyLoginRewardsAvailable": {
-        "desc": "登录奖励可用",
+    "DailyLoginReturnHall": {
+        "desc": "全部领取按钮变灰后点击主页返回大厅",
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "CommonClickHomeButton",
+                    "DailyLoginClaimAllButtonVisible",
+                    "DailyLoginRewardsClaimed"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_wait_freezes": 500
+    },
+    "DailyLoginRewardsClaimed": {
+        "desc": "登录奖励已领完，全部领取文字为灰色",
         "recognition": {
             "type": "ColorMatch",
             "param": {
                 "roi": "DailyLoginClaimAllButtonVisible",
                 "lower": [
-                    200,
-                    200,
-                    200
+                    100,
+                    100,
+                    100
                 ],
                 "upper": [
-                    255,
-                    255,
-                    255
+                    180,
+                    180,
+                    180
+                ],
+                "count": 100
+            }
+        }
+    },
+    "DailyLoginRewardsAvailable": {
+        "desc": "登录奖励可用", // 多段区间取并集：任一区间达到 count 即命中，避免每期活动换主题时改颜色
+        "recognition": {
+            "type": "ColorMatch",
+            "param": {
+                "roi": "DailyLoginClaimAllButtonVisible",
+                "lower": [
+                    [
+                        200,
+                        200,
+                        200
+                    ], //白色文字，如 Daily Evil Deed
+                    [
+                        225,
+                        235,
+                        60
+                    ] //金色文字，如 HeroDays
+                ],
+                "upper": [
+                    [
+                        255,
+                        255,
+                        255
+                    ],
+                    [
+                        245,
+                        255,
+                        95
+                    ]
                 ],
                 "count": 100
             }

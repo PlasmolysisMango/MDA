@@ -1,83 +1,232 @@
 {
     "MapPushingFlow": {
         "desc": "推图流程",
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "RuntimeQuotaCheck"
+            }
+        },
         "next": [
             "[JumpBack]BattleEntryFlow",
             "[JumpBack]CommonSkipPlot",
-            "[JumpBack]MapPushingClickMonster",
-            "[JumpBack]MapPushingClickPlate"
-        ]
+            "[JumpBack]MapPushingOpenMinimap",
+            "[JumpBack]MapPushingClickPlate",
+            "[JumpBack]MapPushingClickMonster"
+        ],
+        "focus": {
+            "Node.Action.Succeeded": "$focus.MapPushingFlow.Action.Succeeded"
+        }
     },
     "MapPushingClickMonsterRaw": {
         "desc": "推图怪物原始识别",
         "recognition": {
             "type": "NeuralNetworkDetect",
             "param": {
-                "model": "MapPushing.onnx",
-                "labels": [
-                    "monster"
-                ]
+                "roi": [
+                    180,
+                    40,
+                    1080,
+                    610
+                ],
+                "expected": [
+                    0,
+                    1
+                ],
+                "model": "MapPushing.onnx"
             }
         }
     },
     "MapPushingClickMonster": {
-        "desc": "推图点击怪物",
+        "desc": "选怪并点击出发", // next 顺序即优先级：战斗/剧情已出现 → 机关 → 再选怪（点不出去就重选）
         "recognition": {
-            "type": "Custom",
+            "type": "And", // 取离画面中心最近的那只怪；fallback=fail 表示没有候选就判未命中，不拿检测框兜底去点空地
             "param": {
-                "custom_recognition": "CenterPriorityRecognition",
-                "custom_recognition_param": {
-                    "entry": "MapPushingClickMonsterRaw"
-                }
+                "all_of": [
+                    {
+                        "recognition": {
+                            "type": "Custom",
+                            "param": {
+                                "custom_recognition": "CenterPriorityRecognition",
+                                "custom_recognition_param": {
+                                    "entry": "MapPushingClickMonsterRaw",
+                                    "fallback": "fail"
+                                }
+                            }
+                        }
+                    }, // 放首位：命中框就是选怪结果，Click 才会落在怪身上
+                    "MapPushingMinimapVisible"
+                ]
             }
         },
+        "pre_delay": 0,
         "action": {
             "type": "Click"
         },
         "post_wait_freezes": {
-            "time": 500,
+            "time": 800, // 点击后等小地图区域静止 800ms（threshold 0.98）才算走完一步，最多等 3 秒（timeout 3000）
             "target": [
-                448,
-                512,
-                385,
-                79
-            ]
-        }
+                20,
+                85,
+                122,
+                90
+            ],
+            "threshold": 0.98,
+            "rate_limit": 100,
+            "timeout": 3000
+        },
+        "next": [
+            "MapPushingTravelInterrupted",
+            "MapPushingClickPlate",
+            "MapPushingClickMonster"
+        ]
     },
     "MapPushingClickPlateRaw": {
         "desc": "推图机关原始识别",
         "recognition": {
             "type": "NeuralNetworkDetect",
             "param": {
-                "model": "MapPushing.onnx",
-                "labels": [
-                    "plate0"
-                ]
+                "roi": [
+                    180,
+                    40,
+                    1080,
+                    610
+                ],
+                "expected": [
+                    2
+                ],
+                "model": "MapPushing.onnx"
             }
         }
     },
     "MapPushingClickPlate": {
-        "desc": "推图点击机关",
+        "desc": "点未开启的机关",
         "recognition": {
-            "type": "Custom",
+            "type": "And", // 先全图机关检测，再用中央近景补漏；两条都走中心优先、fallback=fail 不兜底
             "param": {
-                "custom_recognition": "CenterPriorityRecognition",
-                "custom_recognition_param": {
-                    "entry": "MapPushingClickPlateRaw"
-                }
+                "all_of": [
+                    {
+                        "recognition": {
+                            "type": "Or",
+                            "param": {
+                                "any_of": [
+                                    {
+                                        "recognition": {
+                                            "type": "Custom",
+                                            "param": {
+                                                "custom_recognition": "CenterPriorityRecognition",
+                                                "custom_recognition_param": {
+                                                    "entry": "MapPushingClickPlateRaw",
+                                                    "fallback": "fail"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "recognition": {
+                                            "type": "Custom",
+                                            "param": {
+                                                "custom_recognition": "CenterPriorityRecognition",
+                                                "custom_recognition_param": {
+                                                    "entry": "MapPushingClickNearbyPlateRaw",
+                                                    "fallback": "fail"
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }, // 放首位：命中框就是机关结果，Click 才会落在机关上
+                    "MapPushingMinimapVisible"
+                ]
             }
         },
         "action": {
             "type": "Click"
         },
         "post_wait_freezes": {
-            "time": 500,
+            "time": 800, // 与选怪同一套“等小地图稳定”参数：静止 800ms、最多等 3 秒
             "target": [
-                448,
-                512,
-                385,
-                79
-            ]
+                20,
+                85,
+                122,
+                90
+            ],
+            "threshold": 0.98,
+            "rate_limit": 100,
+            "timeout": 3000
+        }
+    },
+    "MapPushingClickNearbyPlateRaw": {
+        "desc": "中央近景机关补检",
+        "recognition": {
+            "type": "NeuralNetworkDetect", // 大范围缩放后脚下踏板容易漏检，用小 ROI 近景再检一次；仍是同一模型，expected 2 即机关类
+            "param": {
+                "roi": [
+                    360,
+                    200,
+                    550,
+                    400
+                ],
+                "expected": [
+                    2
+                ],
+                "model": "MapPushing.onnx"
+            }
+        }
+    },
+    "MapPushingTravelInterrupted": {
+        "desc": "战斗准备或剧情已出现，返回推图入口处理",
+        "recognition": {
+            "type": "Or",
+            "param": {
+                "any_of": [
+                    "BattleMainVisible",
+                    "CommonSkipPlot"
+                ]
+            }
+        }
+    },
+    "MapPushingOpenMinimap": {
+        "desc": "展开收起的小地图",
+        "recognition": {
+            "type": "TemplateMatch", // 点开后必须确认 MapPushingMinimapVisible 展开成功再往下走，否则后续选怪/机关会对着收起的小地图找不到目标；5 秒内没展开就失败退出
+            "param": {
+                "roi": [
+                    13,
+                    53,
+                    36,
+                    38
+                ],
+                "template": [
+                    "MapPushing/MinimapCollapsed.png"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "timeout": 5000,
+        "next": [
+            "MapPushingMinimapVisible"
+        ]
+    },
+    "MapPushingMinimapVisible": {
+        "desc": "确认小地图展开，避免等待区域落入动态场景背景",
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    13,
+                    58,
+                    30,
+                    33
+                ],
+                "template": [
+                    "MapPushing/MinimapVisible.png"
+                ]
+            }
         }
     }
 }

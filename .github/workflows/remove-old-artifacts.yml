@@ -1,0 +1,22 @@
+name: Remove old artifacts
+
+on:
+  workflow_dispatch:
+
+jobs:
+  remove-old-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # For private repos
+    permissions:
+      actions: write
+
+    steps:
+      - name: Remove old artifacts
+        uses: c-hive/gha-remove-artifacts@v1
+        with:
+          age: "90 days" # 正式 Android 构建信息保留 90 天；测试包自身 14 天过期
+          # Optional inputs
+          # skip-tags: true
+          # skip-recent: 5

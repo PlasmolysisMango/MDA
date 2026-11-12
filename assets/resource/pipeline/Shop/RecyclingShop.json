@@ -9,7 +9,12 @@
             "[JumpBack]ShopPurchaseMaintenanceKitBox",
             "[JumpBack]ShopPurchaseCuratedManufacturerArms",
             "[JumpBack]ShopPurchaseGem",
-            "[JumpBack]ShopPurchaseVoucher",
+            "[JumpBack]RecyclingShopPurchaseDarlingForADay",
+            "[JumpBack]RecyclingShopPurchaseElysionVIPBuffetVoucher",
+            "[JumpBack]RecyclingShopPurchaseMissilisVIPCard",
+            "[JumpBack]RecyclingShopPurchaseTetraVIPSpaVoucher",
+            "[JumpBack]RecyclingShopPurchasePilgrimSupplySetVoucher",
+            "[JumpBack]RecyclingShopPurchaseAbnormalAnnualTicket",
             "[JumpBack]ShopPurchaseUpgradeMaterials",
             "[JumpBack]CommonSwipeUp",
             "CommonEndTask"
@@ -17,18 +22,13 @@
     },
     "ShopEnterRecyclingShop": {
         "desc": "进入废铁商店",
-        "max_hit": 1,
+        "max_hit": 3, // 点不进去时重试的预算
         "recognition": {
-            "type": "TemplateMatch",
+            "type": "And",
             "param": {
-                "roi": [
-                    0,
-                    255,
-                    55,
-                    390
-                ],
-                "template": [
-                    "Shop/RecyclingShop/RecyclingShop.png"
+                "all_of": [
+                    "ShopRecyclingShopTab", // 放在首位以取页签框作为点击目标
+                    "ShopRecyclingShopTabUnselected"
                 ]
             }
         },
@@ -36,10 +36,53 @@
             "type": "Click"
         },
         "post_wait_freezes": 500,
+        "timeout": 10000,
         "next": [
             "ShopRecyclingShopEntered",
             "ShopEnterRecyclingShop"
         ]
+    },
+    "ShopRecyclingShopTab": {
+        "desc": "废铁商店侧栏页签",
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    0,
+                    539,
+                    56,
+                    55
+                ],
+                "template": [
+                    "Shop/RecyclingShop/RecyclingShop.png"
+                ]
+            }
+        }
+    },
+    "ShopRecyclingShopTabUnselected": {
+        "desc": "废铁商店页签未选中",
+        "recognition": {
+            "type": "ColorMatch",
+            "param": {
+                "roi": [
+                    0,
+                    539,
+                    56,
+                    55
+                ], // 选中时整行铺橙底(≈248,156,43)，未选中是深灰，故命中深色即未选中
+                "lower": [
+                    0,
+                    0,
+                    0
+                ],
+                "upper": [
+                    140,
+                    140,
+                    140
+                ],
+                "count": 800
+            }
+        }
     },
     "ShopRecyclingShopEntered": {
         "desc": "处于废铁商店",
@@ -142,10 +185,10 @@
             "type": "Click"
         }
     },
-    "ShopPurchaseVoucher": {
-        "desc": "购买所有礼物券",
+    "RecyclingShopPurchaseDarlingForADay": {
+        "desc": "购买指挥官自由使用券",
         "enabled": false,
-        "max_hit": 6,
+        "max_hit": 1,
         "recognition": {
             "type": "TemplateMatch",
             "param": {
@@ -155,14 +198,112 @@
                     1222,
                     325
                 ],
-                "template": [
-                    "Shop/Voucher/Darlingforaday.png",
-                    "Shop/Voucher/ElysionVIPBuffetVoucher.png",
-                    "Shop/Voucher/MissilisVIPCard.png",
-                    "Shop/Voucher/TetraVIPSpaVoucher.png",
-                    "Shop/Voucher/PilgrimSupplySetVoucher.png",
-                    "Shop/Voucher/AbnormalAnnualTicket.png"
+                "template": "Shop/Voucher/DarlingForADay.png",
+                "threshold": 0.9
+            }
+        },
+        "action": {
+            "type": "Click"
+        }
+    },
+    "RecyclingShopPurchaseElysionVIPBuffetVoucher": {
+        "desc": "购买极乐净土VIP餐券",
+        "enabled": false,
+        "max_hit": 1,
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    58,
+                    338,
+                    1222,
+                    325
                 ],
+                "template": "Shop/Voucher/ElysionVIPBuffetVoucher.png",
+                "threshold": 0.9
+            }
+        },
+        "action": {
+            "type": "Click"
+        }
+    },
+    "RecyclingShopPurchaseMissilisVIPCard": {
+        "desc": "购买米西利斯VIP卡",
+        "enabled": false,
+        "max_hit": 1,
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    58,
+                    338,
+                    1222,
+                    325
+                ],
+                "template": "Shop/Voucher/MissilisVIPCard.png",
+                "threshold": 0.9
+            }
+        },
+        "action": {
+            "type": "Click"
+        }
+    },
+    "RecyclingShopPurchaseTetraVIPSpaVoucher": {
+        "desc": "购买泰特拉VIP护理券",
+        "enabled": false,
+        "max_hit": 1,
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    58,
+                    338,
+                    1222,
+                    325
+                ],
+                "template": "Shop/Voucher/TetraVIPSpaVoucher.png",
+                "threshold": 0.9
+            }
+        },
+        "action": {
+            "type": "Click"
+        }
+    },
+    "RecyclingShopPurchasePilgrimSupplySetVoucher": {
+        "desc": "购买朝圣者补给套组交换券",
+        "enabled": false,
+        "max_hit": 1,
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    58,
+                    338,
+                    1222,
+                    325
+                ],
+                "template": "Shop/Voucher/PilgrimSupplySetVoucher.png",
+                "threshold": 0.9
+            }
+        },
+        "action": {
+            "type": "Click"
+        }
+    },
+    "RecyclingShopPurchaseAbnormalAnnualTicket": {
+        "desc": "购买反常年券",
+        "enabled": false,
+        "max_hit": 1,
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    58,
+                    338,
+                    1222,
+                    325
+                ],
+                "template": "Shop/Voucher/AbnormalAnnualTicket.png",
                 "threshold": 0.9
             }
         },
@@ -171,7 +312,7 @@
         }
     },
     "ShopPurchaseUpgradeMaterials": {
-        "desc": "购买所有养成材料",
+        "desc": "购买所有成长材料",
         "enabled": false,
         "max_hit": 7,
         "recognition": {

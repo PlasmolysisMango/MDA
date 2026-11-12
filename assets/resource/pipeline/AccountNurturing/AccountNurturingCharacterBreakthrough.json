@@ -3,8 +3,9 @@
         "desc": "角色突破",
         "max_hit": 1,
         "next": [
+            "AccountNurturingCharacterBreakthroughFlow",
             "AccountNurturingCharacterBreakthroughEnterHall",
-            "[JumpBack]CommonReturnHall"
+            "[JumpBack]SceneEnterHall"
         ]
     },
     "AccountNurturingCharacterBreakthroughEnterHall": {
@@ -50,7 +51,8 @@
             }
         },
         "next": [
-            "AccountNurturingCharacterBreakthroughFlow"
+            "AccountNurturingCharacterBreakthroughFlow",
+            "AccountNurturingCharacterBreakthroughClickRedDot" //兜底：点击未生效时重试
         ]
     },
     "AccountNurturingCharacterBreakthroughFlow": {
@@ -188,7 +190,7 @@
                     765,
                     502,
                     44,
-                    31
+                    48
                 ],
                 "template": [
                     "Common/MAX.png"
@@ -225,7 +227,7 @@
                     478,
                     572,
                     324,
-                    46
+                    76
                 ],
                 "expected": [
                     ".*极限突破.*",

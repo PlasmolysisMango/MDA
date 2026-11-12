@@ -86,11 +86,20 @@
                 ]
             }
         },
+        "post_wait_freezes": {
+            "time": 200,
+            "target": [
+                475,
+                165,
+                330,
+                515
+            ],
+            "rate_limit": 100,
+            "timeout": 2000
+        },
         "next": [
-            "[JumpBack]ArchivesRedDotClickBottom",
-            "[JumpBack]ArchivesRedDotClickTop",
-            "CommonClosePage",
-            "CommonEndTask"
+            "RedDotClearArchivesCleared",
+            "ArchivesRedDotClickTop"
         ]
     },
     "ArchivesEntered": {
@@ -105,7 +114,7 @@
                     25
                 ],
                 "expected": [
-                    ".*回忆.*"
+                    ".*回.*" //回忆
                 ]
             }
         }
@@ -123,7 +132,9 @@
                 ],
                 "expected": [
                     ".*活动奖励.*"
-                ]
+                ],
+                "order_by": "Vertical",
+                "index": -1
             }
         },
         "action": {
@@ -203,18 +214,39 @@
             "CommonClosePage",
             "[JumpBack]CommonGoBack",
             "[JumpBack]CommonTouchToContinue",
-            "[JumpBack]CommonClickBlank"
+            "[JumpBack]RedDotClearArchivesDismissIntro"
         ]
     },
+    "RedDotClearArchivesDismissIntro": {
+        "desc": "跳过首次活动封面", // 左上角活动地区哨兵没出现，说明还停在首次活动封面，此时才点空白跳过；固定点画面下沿空白，跳过封面不依赖识别
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "LargeEventMainPageEntered"
+                ]
+            }
+        },
+        "inverse": true,
+        "action": {
+            "type": "Click",
+            "param": {
+                "target": [
+                    640,
+                    650
+                ]
+            }
+        }
+    },
     "ArchivesRedDotClickTop": {
-        "desc": "档案馆顶部点击红点",
+        "desc": "仅进入时点击剧情活动标签，后续翻页不重复点击",
         "recognition": {
             "type": "TemplateMatch",
             "param": {
                 "roi": [
                     467,
                     118,
-                    264,
+                    130,
                     33
                 ],
                 "template": [
@@ -226,28 +258,100 @@
         "action": {
             "type": "Click",
             "param": {
-                "target_offset": [
-                    -10,
-                    10,
-                    0,
-                    0
+                "target": [
+                    535,
+                    135
                 ]
             }
+        },
+        "post_wait_freezes": {
+            "time": 200,
+            "target": [
+                475,
+                165,
+                330,
+                515
+            ],
+            "rate_limit": 100,
+            "timeout": 2000
         },
         "next": [
             "RedDotClearArchivesScrollUp"
         ]
     },
     "RedDotClearArchivesScrollUp": {
-        "desc": "向上滑动",
+        "desc": "上滑到列表底部", // 最新活动排在列表最底部，先连续上滑到底，再交给 RedDotClearArchivesScanFlow 自下而上扫
+        "action": {
+            "type": "Swipe",
+            "param": {
+                "begin": [
+                    640,
+                    650
+                ],
+                "end": [
+                    640,
+                    180
+                ],
+                "end_hold": 100,
+                "duration": 150
+            }
+        },
+        "repeat": 30, // 单次上滑约 470px，30 次足够从列表顶部滑到底部
+        "repeat_delay": 100,
+        "post_wait_freezes": {
+            "time": 200,
+            "target": [
+                475,
+                165,
+                330,
+                515
+            ],
+            "rate_limit": 100,
+            "timeout": 2000
+        },
+        "next": [
+            "RedDotClearArchivesScanFlow"
+        ]
+    },
+    "RedDotClearArchivesScanFlow": {
+        "desc": "从最新活动向上扫描", // 由最新活动向上检查，红点消失才结束
+        "max_hit": 40, // 与 ScrollDown 同步：超过扫描上限仍有红点即超时报错
+        "timeout": 5000,
+        "rate_limit": 200,
+        "next": [
+            "RedDotClearArchivesCleared",
+            "[JumpBack]ArchivesRedDotClickBottom",
+            "RedDotClearArchivesScrollDown"
+        ]
+    },
+    "ArchivesStoryNew": {
+        "desc": "剧情活动标签仍有红点或 New",
         "recognition": {
             "type": "TemplateMatch",
             "param": {
                 "roi": [
-                    460,
-                    84,
-                    362,
-                    50
+                    467,
+                    118,
+                    130,
+                    33
+                ],
+                "template": [
+                    "Common/RedDot.png",
+                    "Common/New.png"
+                ]
+            }
+        }
+    },
+    "RedDotClearArchivesCleared": {
+        "desc": "红点清完返回", // 外层 RedDotClearArchivesFlow 已确认处于档案馆，这里只判剧情活动标签的红点/New 消失就正常返回
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    467,
+                    118,
+                    130,
+                    33
                 ],
                 "template": [
                     "Common/RedDot.png",
@@ -255,20 +359,51 @@
                 ]
             }
         },
+        "inverse": true,
+        "next": [
+            "CommonGoBack"
+        ]
+    },
+    "RedDotClearArchivesScrollDown": {
+        "desc": "逐页下滑检查红点", // 有红点才反向逐页检查；滑动保留视口重叠，避免跨页的活动被整页跳过
+        "max_hit": 40, // 滑到顶不算成功，红点消失才结束
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "ArchivesEntered",
+                    "ArchivesStoryNew"
+                ]
+            }
+        },
         "action": {
             "type": "Swipe",
             "param": {
                 "begin": [
-                    627,
-                    528
+                    640,
+                    220
                 ],
                 "end": [
-                    627,
-                    238
+                    640,
+                    600
                 ],
-                "end_hold": 300
+                "end_hold": 200,
+                "duration": 300
             }
         },
-        "post_wait_freezes": 20
+        "post_wait_freezes": {
+            "time": 200,
+            "target": [
+                475,
+                165,
+                330,
+                515
+            ],
+            "rate_limit": 100,
+            "timeout": 2000
+        },
+        "next": [
+            "RedDotClearArchivesScanFlow"
+        ]
     }
 }

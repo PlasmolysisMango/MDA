@@ -1,0 +1,245 @@
+package membership
+
+import (
+	"testing"
+	"time"
+)
+
+func TestRegularQuotaMultiplier(t *testing.T) {
+	cases := []struct {
+		entry string
+		want  int64
+	}{
+		{entry: "SmallEventMain", want: 1000},
+		{entry: "LargeEventMain", want: 1000},
+		{entry: "MapPushingFlow", want: 5000},
+		{entry: "EquipmentRerollMain", want: 5000},
+		{entry: "CustomBurstMain", want: 5000},
+		{entry: "DailyRewardsMain", want: 1000},
+	}
+	for _, test := range cases {
+		if got := regularQuotaMultiplier(test.entry).BasePermille; got != test.want {
+			t.Fatalf("regularQuotaMultiplier(%s).BasePermille = %d, want %d", test.entry, got, test.want)
+		}
+	}
+}
+
+// 倍率是额度池的属性：专项额度与活动额度不因任务分级而放大。
+func TestUnmultipliedQuotaMultiplierIgnoresTaskTier(t *testing.T) {
+	for _, entry := range HighConsumptionEntries() {
+		if got := unmultipliedQuotaMultiplier().totalPermille(); got != multiplierScale {
+			t.Fatalf("unmultipliedQuotaMultiplier() for %s = %d, want %d", entry, got, multiplierScale)
+		}
+	}
+}
+
+func TestQuotaDisplayEntryIsQuotaExempt(t *testing.T) {
+	if !isQuotaExemptEntry(entryQuotaDisplayMain) {
+		t.Fatal("QuotaDisplayMain should be quota exempt")
+	}
+	if isQuotaExemptEntry("DailyRewardsMain") {
+		t.Fatal("DailyRewardsMain should not be quota exempt")
+	}
+}
+
+func TestBillableDuration(t *testing.T) {
+	multiplier := quotaMultiplier{BasePermille: 3000, ExtraPermille: 1500}
+	if got := multiplier.billableDuration(time.Minute); got != 270*time.Second {
+		t.Fatalf("billableDuration() = %s, want 4m30s", got)
+	}
+}
+
+func TestTakeRealSecondsLockedKeepsFractionUntilFlush(t *testing.T) {
+	tracker := &RuntimeTracker{}
+
+	tracker.realNs = 500 * int64(time.Millisecond)
+	if got := tracker.takeRealSecondsLocked(false); got != 0 {
+		t.Fatalf("first takeRealSecondsLocked() = %d, want 0", got)
+	}
+	tracker.realNs += 500 * int64(time.Millisecond)
+	if got := tracker.takeRealSecondsLocked(false); got != 1 {
+		t.Fatalf("second takeRealSecondsLocked() = %d, want 1", got)
+	}
+	if got := tracker.takeRealSecondsLocked(true); got != 0 {
+		t.Fatalf("flush with no remainder = %d, want 0", got)
+	}
+}
+
+func TestTakeRealSecondsLockedCeilsOnFlush(t *testing.T) {
+	tracker := &RuntimeTracker{realNs: 500 * int64(time.Millisecond)}
+	if got := tracker.takeRealSecondsLocked(true); got != 1 {
+		t.Fatalf("flush takeRealSecondsLocked() = %d, want 1", got)
+	}
+}
+
+func TestConsumeTickIgnoresStaleGeneration(t *testing.T) {
+	isolateQuotaState(t)
+	status := testStatus(10, "device-a")
+	tracker := &RuntimeTracker{
+		active:     true,
+		generation: 2,
+		last:       time.Now().Add(-time.Minute),
+		multiplier: quotaMultiplier{
+			BasePermille:  multiplierScale,
+			ExtraPermille: multiplierScale,
+		},
+	}
+
+	if _, done := tracker.consumeTick(status, quotaRouteRegular, 1); !done {
+		t.Fatalf("consumeTick() with stale generation should stop")
+	}
+
+	snapshot, err := GetQuotaSnapshot(status, quotaPoolRegularDaily)
+	if err != nil {
+		t.Fatalf("GetQuotaSnapshot() failed: %v", err)
+	}
+	if snapshot.UsedSeconds != 0 {
+		t.Fatalf("UsedSeconds = %d, want 0", snapshot.UsedSeconds)
+	}
+}
+
+func TestConsumeTickTerminatesWhenQuotaExhausted(t *testing.T) {
+	isolateQuotaState(t)
+	status := testStatus(10, "device-a")
+	if _, exceeded, err := addQuotaRouteUsageSeconds(status, quotaRouteRegular, 599); err != nil {
+		t.Fatalf("addQuotaRouteUsageSeconds() failed: %v", err)
+	} else if exceeded {
+		t.Fatal("consuming part of the quota should not report it exhausted")
+	}
+
+	tracker := &RuntimeTracker{
+		active:     true,
+		generation: 3,
+		last:       time.Now().Add(-2 * time.Second),
+		multiplier: quotaMultiplier{
+			BasePermille:  multiplierScale,
+			ExtraPermille: multiplierScale,
+		},
+	}
+
+	snapshot, done := tracker.consumeTick(status, quotaRouteRegular, 3)
+	if !done {
+		t.Fatal("consumeTick() should stop tracking after the quota is exhausted")
+	}
+	if snapshot.RegularUsedSeconds != 600 {
+		t.Fatalf("RegularUsedSeconds = %d, want 600", snapshot.RegularUsedSeconds)
+	}
+	if !tracker.stopped {
+		t.Fatal("stopped = false, want true (pending stop should be armed)")
+	}
+	// PostStop must be deferred to MaaFramework's callback dispatch lifetime,
+	// not invoked from the quota timer goroutine.
+	if tracker.stopPosted {
+		t.Fatal("stopPosted = true, want false (PostStop must not be posted from the timer goroutine)")
+	}
+	if !tracker.takePendingStop() {
+		t.Fatal("takePendingStop() = false, want true (stop should fire on next callback)")
+	}
+}
+
+func TestPendingStopIsTakenOnce(t *testing.T) {
+	tracker := &RuntimeTracker{
+		active:     true,
+		generation: 3,
+	}
+
+	if !tracker.requestStop(3) {
+		t.Fatal("requestStop() = false, want true")
+	}
+	if !tracker.takePendingStop() {
+		t.Fatal("first takePendingStop() = false, want true")
+	}
+	if tracker.takePendingStop() {
+		t.Fatal("second takePendingStop() = true, want false")
+	}
+}
+
+func TestRequestStopIgnoresStaleGeneration(t *testing.T) {
+	tracker := &RuntimeTracker{
+		active:     true,
+		generation: 4,
+	}
+
+	if tracker.requestStop(3) {
+		t.Fatal("requestStop() with stale generation = true, want false")
+	}
+	if tracker.takePendingStop() {
+		t.Fatal("takePendingStop() = true without a valid request")
+	}
+}
+
+func TestConsumeTickSwitchesTo5xWhenSpecialQuotaExhausted(t *testing.T) {
+	isolateQuotaState(t)
+	status := &MembershipStatus{
+		TierCode:                    "orange_plus",
+		TierName:                    "Orange Plus",
+		RegularDailyRuntimeMinutes:  100,
+		SpecialPeriodRuntimeMinutes: 1,
+		StartsOn:                    "2026-05-01",
+		ExpiresOn:                   "2026-06-01",
+		IsMember:                    true,
+		DeviceCode: DeviceCodeV7{
+			CPUHash: "device-a",
+		},
+	}
+	// 直接构造“专项额度已耗尽”的状态：常规额度优先扣减后，专项额度不会再被自动耗尽，
+	// 这里要验证的正是“无活动额度、无专项额度”时高级任务才进入 5 倍计费。
+	path := isolateQuotaState(t)
+	state := normalizeQuotaPools(status, quotaState{}, []quotaPool{quotaPoolRegularDaily, quotaPoolSpecialPeriod}, time.Now())
+	special := state.Pools[string(quotaPoolSpecialPeriod)]
+	special.UsedSeconds = special.LimitSeconds
+	state.Pools[string(quotaPoolSpecialPeriod)] = special
+	mustSaveQuotaState(t, path, state)
+
+	tracker := &RuntimeTracker{
+		active:     true,
+		generation: 1,
+		entry:      "MapPushingFlow",
+		route:      quotaRouteSpecialThenRegular,
+		status:     status,
+		last:       time.Now().Add(-2 * time.Second),
+		multiplier: quotaMultiplier{BasePermille: multiplierScale, ExtraPermille: multiplierScale},
+		realNs:     0,
+		stopCh:     make(chan struct{}),
+	}
+
+	snapshot, done := tracker.consumeTick(status, quotaRouteSpecialThenRegular, 1)
+	if done {
+		t.Fatal("consumeTick() should not stop when regular quota remains")
+	}
+	if tracker.multiplier.BasePermille != 5*multiplierScale {
+		t.Fatalf("tracker.multiplier.BasePermille = %d, want %d", tracker.multiplier.BasePermille, 5*multiplierScale)
+	}
+	if snapshot.RegularUsedSeconds != 10 {
+		t.Fatalf("RegularUsedSeconds = %d, want 10 (2 real seconds at 5x)", snapshot.RegularUsedSeconds)
+	}
+}
+
+func TestFinishFlushesFractionTail(t *testing.T) {
+	isolateQuotaState(t)
+	status := testStatus(10, "device-a")
+	tracker := &RuntimeTracker{
+		active: true,
+		route:  quotaRouteRegular,
+		status: status,
+		// 已有半秒尾数即可覆盖 finish 的向上取整；不要再补半秒到恰好一秒，
+		// 否则 finish 内新增的实际耗时会越过边界，正确地结算成两秒。
+		last: time.Now(),
+		multiplier: quotaMultiplier{
+			BasePermille:  multiplierScale,
+			ExtraPermille: multiplierScale,
+		},
+		realNs: 500 * int64(time.Millisecond),
+		stopCh: make(chan struct{}),
+	}
+
+	tracker.finish()
+
+	snapshot, err := GetQuotaSnapshot(status, quotaPoolRegularDaily)
+	if err != nil {
+		t.Fatalf("GetQuotaSnapshot() failed: %v", err)
+	}
+	if snapshot.UsedSeconds != 1 {
+		t.Fatalf("UsedSeconds = %d, want 1", snapshot.UsedSeconds)
+	}
+}

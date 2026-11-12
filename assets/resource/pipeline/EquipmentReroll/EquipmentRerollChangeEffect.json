@@ -1,0 +1,76 @@
+{
+    "__EquipmentRerollChangeEffectTitle": {
+        "desc": "效果变更页标题", // 只认顶部蓝底白字大标题：底部同名按钮也在同一画面，ROI 限 y=90~190 才能排除。本节点还是 Slot1-3 与锁定判定的 ROI 基准，改 ROI 会连带挪动增量框
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    610,
+                    90,
+                    120,
+                    100
+                ],
+                "expected": "效果变更"
+            }
+        }
+    },
+    "__EquipmentRerollPreviousLockSettings": {
+        "desc": "历史锁设置入口", // 只做定位：既是 ReloadLocks 的点击目标，也是 ChangeEffectButton 的相对 ROI 基准
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    515,
+                    440,
+                    250,
+                    185
+                ],
+                "expected": "加载先前的锁定设置" // 是否载入由 Go 的 reusableLockPlan 决定（完整计划一致才恢复），本节点自身从不点击
+            }
+        }
+    },
+    "__EquipmentRerollChangeEffectButton": {
+        "desc": "底部效果变更按钮", // 相对「加载先前的锁定设置」下移 27px 取按钮：材料区高度会变，按钮跟着上下浮动，绝对 ROI 会失效
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": "__EquipmentRerollPreviousLockSettings",
+                "roi_offset": [
+                    -120,
+                    27,
+                    220,
+                    35
+                ],
+                "expected": "效果变更"
+            }
+        }
+    },
+    "__EquipmentRerollChangeEffectSlot2": {
+        "recognition": {
+            "type": "DirectHit",
+            "param": {
+                "roi": "__EquipmentRerollChangeEffectTitle",
+                "roi_offset": [
+                    -128,
+                    117,
+                    241,
+                    2
+                ]
+            }
+        }
+    },
+    "__EquipmentRerollChangeEffectSlot3": {
+        "recognition": {
+            "type": "DirectHit",
+            "param": {
+                "roi": "__EquipmentRerollChangeEffectTitle",
+                "roi_offset": [
+                    -128,
+                    144,
+                    241,
+                    2
+                ]
+            }
+        }
+    }
+}

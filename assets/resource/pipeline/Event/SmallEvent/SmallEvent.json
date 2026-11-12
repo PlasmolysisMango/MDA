@@ -18,6 +18,7 @@
         },
         "next": [
             "SmallEventEnterMainPage",
+            "[JumpBack]CommonClickEventChange",
             "CommonEndTask"
         ]
     },
@@ -27,18 +28,26 @@
             "type": "TemplateMatch",
             "param": {
                 "roi": [
-                    824,
+                    799,
                     571,
-                    145,
+                    170,
                     68
                 ],
                 "template": [
-                    "Common/RedDot.png" //占位，应该去task页面修改
+                    "SmallEvent/LittleWitchTrick/LittleWitchTrickLogo.png" //当前活动，随最新主题更新
                 ]
             }
         },
         "action": {
-            "type": "Click"
+            "type": "Click",
+            "param": {
+                "target_offset": [
+                    30,
+                    0,
+                    0,
+                    0
+                ]
+            }
         },
         "next": [
             "SmallEventMainPageClickStoryArea",
@@ -58,7 +67,8 @@
                 ],
                 "expected": [
                     ".*剧情.*"
-                ]
+                ],
+                "only_rec": true //避免 batch OCR 降采样后 det 读不出小字
             }
         }
     },

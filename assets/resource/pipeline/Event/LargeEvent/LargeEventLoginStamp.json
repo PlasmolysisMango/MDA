@@ -9,7 +9,7 @@
                     485,
                     536,
                     308,
-                    79
+                    97
                 ],
                 "expected": [
                     ".*签到.*"
@@ -33,7 +33,7 @@
                     651,
                     649,
                     162,
-                    37
+                    47
                 ],
                 "expected": [
                     "全部领取"
@@ -46,6 +46,8 @@
         "post_wait_freezes": 1000,
         "next": [
             "[JumpBack]CommonConfirmReward",
+            "[JumpBack]CommonSkipPlot",
+            "[JumpBack]LimitedTimeRewardsConfirmRecruit", // 签到奖励的确认弹窗与免费招募结果页共用同一个确认按钮
             "LargeEventGoBack"
         ]
     }

@@ -5,31 +5,33 @@
             "label": "$task.LargeEvent.label",
             "entry": "LargeEventMain",
             "description": "$task.LargeEvent.description",
+            "group": [
+                "periodic"
+            ],
             "option": [
                 "LargeEventTheme",
                 "LargeEventStoryPriority",
                 "LargeEventLoginStamp",
                 "LargeEventChallenge",
                 "LargeEventStory",
+                "LargeEventMiniGame",
                 "LargeEventMission"
-            ],
-            "group": [
-                "periodic"
             ]
         }
     ],
     "option": {
         "LargeEventTheme": {
             "type": "select",
-            "default_case": "WaveToYou",
             "label": "$option.LargeEventTheme.label",
             "cases": [
                 {
+                    "name": "CurrentEvent",
+                    "label": "$option.LargeEventTheme.CurrentEvent",
+                    "description": "$option.LargeEventTheme.CurrentEvent.description"
+                },
+                {
                     "name": "ArkRanger",
                     "label": "$option.LargeEventTheme.ArkRanger",
-                    "option": [
-                        "LargeEventArkRangerMiniGame"
-                    ],
                     "pipeline_override": {
                         "LargeEventEnterMainPage": {
                             "recognition": {
@@ -61,6 +63,12 @@
                                     ]
                                 }
                             }
+                        },
+                        "LargeEventMiniGame": {
+                            "next": [
+                                "LargeEventArkRangerMiniGame",
+                                "CommonEndTask"
+                            ]
                         },
                         "LargeEventMissionClaimed": {
                             "recognition": {
@@ -119,15 +127,17 @@
                                     ]
                                 }
                             }
+                        },
+                        "LargeEventMiniGame": {
+                            "next": [
+                                "CommonEndTask"
+                            ]
                         }
                     }
                 },
                 {
                     "name": "WaveToYou",
                     "label": "$option.LargeEventTheme.WaveToYou",
-                    "option": [
-                        "LargeEventWaveToYouMiniGame"
-                    ],
                     "pipeline_override": {
                         "LargeEventEnterMainPage": {
                             "recognition": {
@@ -160,68 +170,159 @@
                                     ]
                                 }
                             }
+                        },
+                        "LargeEventMiniGame": {
+                            "next": [
+                                "LargeEventWaveToYouMiniGame",
+                                "CommonEndTask"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PersonaOnFrontline",
+                    "label": "$option.LargeEventTheme.PersonaOnFrontline",
+                    "pipeline_override": {
+                        "LargeEventEnterMainPage": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "LargeEvent/PersonaOnFrontline/PersonaOnFrontlineLogo.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "LargeEventClickStoryStage": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "LargeEvent/PersonaOnFrontline/PersonaOnFrontlineStory1Stage.png",
+                                        "LargeEvent/PersonaOnFrontline/PersonaOnFrontlineStory2StageNormal.png",
+                                        "LargeEvent/PersonaOnFrontline/PersonaOnFrontlineStory2StageHard.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "LargeEventClickStoryStageRepeatable": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "LargeEvent/PersonaOnFrontline/PersonaOnFrontlineStory1StageRepeatable.png",
+                                        "LargeEvent/PersonaOnFrontline/PersonaOnFrontlineStory2StageNormalRepeatable.png",
+                                        "LargeEvent/PersonaOnFrontline/PersonaOnFrontlineStory2StageHardRepeatable.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "LargeEventMiniGame": {
+                            "next": [
+                                "PersonaOnFrontlineMiniGame",
+                                "CommonEndTask"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "CoinRushShowdown",
+                    "label": "$option.LargeEventTheme.CoinRushShowdown",
+                    "pipeline_override": {
+                        "LargeEventEnterMainPage": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "LargeEvent/CoinRushShowdown/CoinRushShowdownLogo.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "LargeEventClickStoryStage": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "LargeEvent/CoinRushShowdown/CoinRushShowdownStory1Stage.png",
+                                        "LargeEvent/CoinRushShowdown/CoinRushShowdownStory2StageNormal.png",
+                                        "LargeEvent/CoinRushShowdown/CoinRushShowdownStory2StageHard.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "LargeEventClickStoryStageRepeatable": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "LargeEvent/CoinRushShowdown/CoinRushShowdownStory1StageRepeatable.png",
+                                        "LargeEvent/CoinRushShowdown/CoinRushShowdownStory2StageNormalRepeatable.png",
+                                        "LargeEvent/CoinRushShowdown/CoinRushShowdownStory2StageHardRepeatable.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "LargeEventMiniGame": {
+                            "next": [
+                                "LargeEventCoinRushShowdownMiniGame",
+                                "CommonEndTask"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "MARIAn",
+                    "label": "$option.LargeEventTheme.MARIAn",
+                    "pipeline_override": {
+                        "LargeEventEnterMainPage": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "LargeEvent/MARIAn/MARIAnLogo.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "LargeEventClickStoryStage": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "LargeEvent/MARIAn/MARIAnStory1Stage.png",
+                                        "LargeEvent/MARIAn/MARIAnStory1StageLeft.png",
+                                        "LargeEvent/MARIAn/MARIAnStory2StageNormal.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "LargeEventClickStoryStageRepeatable": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "LargeEvent/MARIAn/MARIAnStory1StageRepeatable.png",
+                                        "LargeEvent/MARIAn/MARIAnStory1StageRepeatableLeft.png",
+                                        "LargeEvent/MARIAn/MARIAnStory2StageNormalRepeatable.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "LargeEventMiniGame": {
+                            "next": [
+                                "CommonEndTask"
+                            ]
                         }
                     }
                 },
                 {
                     "name": "Other",
-                    "label": "$option.LargeEventTheme.Other"
-                }
-            ]
-        },
-        "LargeEventArkRangerMiniGame": {
-            "type": "switch",
-            "default_case": "Yes",
-            "label": "$option.LargeEventArkRangerMiniGame.label",
-            "cases": [
-                {
-                    "name": "Yes",
+                    "label": "$option.LargeEventTheme.Other",
                     "pipeline_override": {
-                        "LargeEventMainPageFlow": {
+                        "LargeEventMiniGame": {
                             "next": [
-                                "[JumpBack]LargeEventEnterLoginStamp",
-                                "[JumpBack]LargeEventEnterChallenge",
-                                "[JumpBack]LargeEventEnterStory",
-                                "[JumpBack]LargeEventEnterMission",
-                                "[JumpBack]LargeEventArkRangerMiniGame",
                                 "CommonEndTask"
                             ]
                         }
                     }
-                },
-                {
-                    "name": "No"
                 }
-            ]
-        },
-        "LargeEventWaveToYouMiniGame": {
-            "type": "switch",
-            "default_case": "Yes",
-            "label": "$option.LargeEventWaveToYouMiniGame.label",
-            "cases": [
-                {
-                    "name": "Yes",
-                    "pipeline_override": {
-                        "LargeEventMainPageFlow": {
-                            "next": [
-                                "[JumpBack]LargeEventEnterLoginStamp",
-                                "[JumpBack]LargeEventEnterChallenge",
-                                "[JumpBack]LargeEventEnterStory",
-                                "[JumpBack]LargeEventWaveToYouMiniGame",
-                                "[JumpBack]LargeEventEnterMission",
-                                "CommonEndTask"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "No"
-                }
-            ]
+            ],
+            "default_case": "CurrentEvent"
         },
         "LargeEventLoginStamp": {
             "type": "switch",
-            "default_case": "Yes",
             "label": "$option.LargeEventContent.LargeEventLoginStamp",
             "cases": [
                 {
@@ -240,11 +341,11 @@
                         }
                     }
                 }
-            ]
+            ],
+            "default_case": "Yes"
         },
         "LargeEventChallenge": {
             "type": "switch",
-            "default_case": "Yes",
             "label": "$option.LargeEventContent.LargeEventChallenge",
             "cases": [
                 {
@@ -263,11 +364,11 @@
                         }
                     }
                 }
-            ]
+            ],
+            "default_case": "Yes"
         },
         "LargeEventStory": {
             "type": "switch",
-            "default_case": "Yes",
             "label": "$option.LargeEventContent.LargeEventStory",
             "cases": [
                 {
@@ -286,11 +387,34 @@
                         }
                     }
                 }
-            ]
+            ],
+            "default_case": "Yes"
+        },
+        "LargeEventMiniGame": {
+            "type": "switch",
+            "label": "$option.LargeEventContent.LargeEventMiniGame",
+            "cases": [
+                {
+                    "name": "Yes",
+                    "pipeline_override": {
+                        "LargeEventMiniGame": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "No",
+                    "pipeline_override": {
+                        "LargeEventMiniGame": {
+                            "enabled": false
+                        }
+                    }
+                }
+            ],
+            "default_case": "Yes"
         },
         "LargeEventMission": {
             "type": "switch",
-            "default_case": "Yes",
             "label": "$option.LargeEventContent.LargeEventMission",
             "cases": [
                 {
@@ -309,11 +433,11 @@
                         }
                     }
                 }
-            ]
+            ],
+            "default_case": "Yes"
         },
         "LargeEventStarAnisMerchBagClick": {
             "type": "switch",
-            "default_case": "Yes",
             "label": "$option.LargeEventStarAnisMerchBagClick.label",
             "cases": [
                 {
@@ -324,6 +448,7 @@
                                 "[JumpBack]LargeEventEnterLoginStamp",
                                 "[JumpBack]LargeEventEnterChallenge",
                                 "[JumpBack]LargeEventEnterStory",
+                                "[JumpBack]LargeEventMiniGame",
                                 "[JumpBack]LargeEventEnterMission",
                                 "[JumpBack]LargeEventStarAnisClickMerchBag",
                                 "CommonEndTask"
@@ -334,11 +459,11 @@
                 {
                     "name": "No"
                 }
-            ]
+            ],
+            "default_case": "Yes"
         },
         "LargeEventStoryPriority": {
             "type": "select",
-            "default_case": "Story2First",
             "label": "$option.LargeEventStoryPriority.label",
             "cases": [
                 {
@@ -358,7 +483,8 @@
                     "name": "Story1First",
                     "label": "$option.LargeEventStoryPriority.Story1First"
                 }
-            ]
+            ],
+            "default_case": "Story2First"
         }
     }
 }

@@ -12,7 +12,8 @@
                     107
                 ],
                 "template": [
-                    "Common/RedDot.png"
+                    "Common/RedDot.png",
+                    "Common/RedDotSP.png"
                 ]
             }
         },
@@ -32,8 +33,27 @@
             "LargeEventMissionFlow"
         ]
     },
-    "LargeEventMissionVisible": {
-        "desc": "大活动任务内部的标识",
+    "LargeEventMissionFlow": {
+        "desc": "大活动任务流程",
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "LargeEventMissionClaimAllButtonVisible"
+                ]
+            }
+        },
+        "next": [
+            "LargeEventMissionClaimedFlow",
+            "[JumpBack]LargeEventMissionClaimAll",
+            "[JumpBack]CommonConfirmReward",
+            "[JumpBack]CommonConfirmAction",
+            "[JumpBack]CommonClosePage",
+            "CommonEndTask"
+        ]
+    },
+    "LargeEventMissionClaimAllButtonVisible": {
+        "desc": "全部领取按钮可见",
         "recognition": {
             "type": "OCR",
             "param": {
@@ -49,82 +69,32 @@
             }
         }
     },
-    "LargeEventMissionFlow": {
-        "desc": "大活动任务流程",
+    "LargeEventMissionAvailable": {
+        "desc": "全部领取按钮可用",
         "recognition": {
-            "type": "And",
+            "type": "ColorMatch",
             "param": {
-                "all_of": [
-                    "LargeEventMissionVisible"
-                ]
-            }
-        },
-        "next": [
-            "[JumpBack]LargeEventClickMissionRedDot",
-            "CommonGoBack"
-        ]
-    },
-    "LargeEventClickMissionRedDot": {
-        "desc": "大活动任务的红点",
-        "recognition": {
-            "type": "TemplateMatch",
-            "param": {
-                "roi": [
-                    453,
-                    106,
-                    375,
-                    59
+                "roi": "LargeEventMissionClaimAllButtonVisible",
+                "lower": [
+                    200,
+                    200,
+                    200
                 ],
-                "template": [
-                    "Common/PassRedDot.png"
+                "upper": [
+                    255,
+                    255,
+                    255
                 ],
-                "threshold": [
-                    0.6
-                ]
-            }
-        },
-        "action": {
-            "type": "Click",
-            "param": {
-                "target_offset": [
-                    -10,
-                    10,
-                    0,
-                    0
-                ]
-            }
-        },
-        "next": [
-            "LargeEventMissionClaimedFlow",
-            "[JumpBack]LargeEventMissionClaimAll",
-            "[JumpBack]CommonConfirmReward",
-            "[JumpBack]CommonConfirmAction",
-            "LargeEventClickMissionRedDot" //兜底
-        ]
-    },
-    "LargeEventMissionClaimedVisible": {
-        "desc": "大活动任务奖励已领取文本可见",
-        "recognition": {
-            "type": "OCR",
-            "param": {
-                "roi": [
-                    680,
-                    624,
-                    137,
-                    35
-                ],
-                "expected": [
-                    "全部领取"
-                ]
+                "count": 100
             }
         }
     },
     "LargeEventMissionClaimed": {
-        "desc": "大活动任务奖励已领取文本颜色",
+        "desc": "全部领取按钮已领取",
         "recognition": {
             "type": "ColorMatch",
             "param": {
-                "roi": "LargeEventMissionClaimedVisible",
+                "roi": "LargeEventMissionClaimAllButtonVisible",
                 "lower": [
                     190,
                     190,
@@ -139,31 +109,14 @@
             }
         }
     },
-    "LargeEventMissionClaimedFlow": {
-        "desc": "大活动任务奖励已领取流程",
+    "LargeEventMissionClaimAll": {
+        "desc": "点击全部领取",
         "recognition": {
             "type": "And",
             "param": {
                 "all_of": [
-                    "LargeEventMissionClaimedVisible",
-                    "LargeEventMissionClaimed"
-                ]
-            }
-        }
-    },
-    "LargeEventMissionClaimAll": {
-        "desc": "大活动任务奖励领取",
-        "recognition": {
-            "type": "OCR",
-            "param": {
-                "roi": [
-                    680,
-                    624,
-                    137,
-                    35
-                ],
-                "expected": [
-                    ".*全部.*"
+                    "LargeEventMissionClaimAllButtonVisible",
+                    "LargeEventMissionAvailable"
                 ]
             }
         },
@@ -171,5 +124,73 @@
             "type": "Click"
         },
         "post_wait_freezes": 500
+    },
+    "LargeEventMissionClaimedFlow": {
+        "desc": "大活动任务本页签已领完",
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "LargeEventMissionClaimAllButtonVisible",
+                    "LargeEventMissionClaimed"
+                ]
+            }
+        },
+        "next": [
+            "[JumpBack]LargeEventMissionEnterDaily",
+            "[JumpBack]LargeEventMissionEnterAchievement",
+            "[JumpBack]CommonClosePage",
+            "CommonEndTask"
+        ]
+    },
+    "LargeEventMissionEnterDaily": {
+        "desc": "切到每日任务页签",
+        "max_hit": 1, //只切一次，避免在两个页签之间来回跳
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    455,
+                    112,
+                    200,
+                    50
+                ],
+                "expected": [
+                    "每日任务"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_wait_freezes": 800,
+        "next": [
+            "LargeEventMissionFlow"
+        ]
+    },
+    "LargeEventMissionEnterAchievement": {
+        "desc": "切到成就页签",
+        "max_hit": 1, //只切一次，避免在两个页签之间来回跳
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    655,
+                    112,
+                    175,
+                    52
+                ],
+                "expected": [
+                    "成就"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_wait_freezes": 800,
+        "next": [
+            "LargeEventMissionFlow"
+        ]
     }
 }

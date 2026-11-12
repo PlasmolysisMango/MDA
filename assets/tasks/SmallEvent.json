@@ -5,23 +5,27 @@
             "label": "$task.SmallEvent.label",
             "entry": "SmallEventMain",
             "description": "$task.SmallEvent.description",
+            "group": [
+                "periodic"
+            ],
             "option": [
                 "SmallEventTheme",
                 "SmallEventChallenge",
                 "SmallEventStory",
                 "SmallEventMission"
-            ],
-            "group": [
-                "periodic"
             ]
         }
     ],
     "option": {
         "SmallEventTheme": {
             "type": "select",
-            "default_case": "ProjectMatis",
             "label": "$option.SmallEventTheme.label",
             "cases": [
+                {
+                    "name": "CurrentEvent",
+                    "label": "$option.SmallEventTheme.CurrentEvent",
+                    "description": "$option.SmallEventTheme.CurrentEvent.description"
+                },
                 {
                     "name": "BitterSpice",
                     "label": "$option.SmallEventTheme.BitterSpice",
@@ -46,16 +50,11 @@
                                 }
                             }
                         },
-                        "SmallEventClickStageRepeatable": {
-                            "recognition": {
-                                "param": {
-                                    "template": [
-                                        "SmallEvent/BitterSpice/BitterSpiceStageNormalRepeatable.png",
-                                        "SmallEvent/BitterSpice/BitterSpiceStageNormalRepeatableSP.png",
-                                        "SmallEvent/BitterSpice/BitterSpiceStageHardRepeatable.png"
-                                    ]
-                                }
-                            }
+                        "SmallEventEventStageQuickBattleFlow": {
+                            "next": [
+                                "SmallEventBitterSpiceClickStageRepeatable",
+                                "SmallEventGoBack"
+                            ]
                         }
                     }
                 },
@@ -82,15 +81,11 @@
                                 }
                             }
                         },
-                        "SmallEventClickStageRepeatable": {
-                            "recognition": {
-                                "param": {
-                                    "template": [
-                                        "SmallEvent/B-SideIdol/B-SideIdolStageNormalRepeatable.png",
-                                        "SmallEvent/B-SideIdol/B-SideIdolStageHardRepeatable.png"
-                                    ]
-                                }
-                            }
+                        "SmallEventEventStageQuickBattleFlow": {
+                            "next": [
+                                "SmallEventBSideIdolClickStageRepeatable",
+                                "SmallEventGoBack"
+                            ]
                         }
                     }
                 },
@@ -112,20 +107,80 @@
                                 "param": {
                                     "template": [
                                         "SmallEvent/ProjectMatis/ProjectMatisStory1Stage.png",
-                                        "SmallEvent/ProjectMatis/ProjectMatisStory2StageNormal.png"
+                                        "SmallEvent/ProjectMatis/ProjectMatisStory2StageNormal.png",
+                                        "SmallEvent/ProjectMatis/ProjectMatisStory2StageHard.png"
                                     ]
                                 }
                             }
                         },
-                        "SmallEventClickStageRepeatable": {
+                        "SmallEventEventStageQuickBattleFlow": {
+                            "next": [
+                                "SmallEventProjectMatisClickStageRepeatable",
+                                "SmallEventGoBack"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GreatVillainUnion",
+                    "label": "$option.SmallEventTheme.GreatVillainUnion",
+                    "pipeline_override": {
+                        "SmallEventEnterMainPage": {
                             "recognition": {
                                 "param": {
                                     "template": [
-                                        "SmallEvent/ProjectMatis/ProjectMatisStory1StageRepeatable.png",
-                                        "SmallEvent/ProjectMatis/ProjectMatisStory2StageNormalRepeatable.png"
+                                        "SmallEvent/GreatVillainUnion/GreatVillainUnionLogo.png"
                                     ]
                                 }
                             }
+                        },
+                        "SmallEventClickStage": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "SmallEvent/GreatVillainUnion/GreatVillainUnionStageNormal.png",
+                                        "SmallEvent/GreatVillainUnion/GreatVillainUnionStageHard.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "SmallEventEventStageQuickBattleFlow": {
+                            "next": [
+                                "SmallEventGreatVillainUnionClickStageRepeatable",
+                                "SmallEventGoBack"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "LittleWitchTrick",
+                    "label": "$option.SmallEventTheme.LittleWitchTrick",
+                    "pipeline_override": {
+                        "SmallEventEnterMainPage": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "SmallEvent/LittleWitchTrick/LittleWitchTrickLogo.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "SmallEventClickStage": {
+                            "recognition": {
+                                "param": {
+                                    "template": [
+                                        "SmallEvent/LittleWitchTrick/LittleWitchTrickStageNormal.png",
+                                        "SmallEvent/LittleWitchTrick/LittleWitchTrickStageHard.png"
+                                    ]
+                                }
+                            }
+                        },
+                        "SmallEventEventStageQuickBattleFlow": {
+                            "next": [
+                                "SmallEventLittleWitchTrickClickStageNormalRepeatable",
+                                "SmallEventLittleWitchTrickClickStageHardRepeatable",
+                                "SmallEventGoBack"
+                            ]
                         }
                     }
                 },
@@ -133,11 +188,11 @@
                     "name": "Other",
                     "label": "$option.SmallEventTheme.Other"
                 }
-            ]
+            ],
+            "default_case": "CurrentEvent"
         },
         "SmallEventChallenge": {
             "type": "switch",
-            "default_case": "Yes",
             "label": "$option.SmallEventContent.SmallEventChallenge",
             "cases": [
                 {
@@ -156,11 +211,11 @@
                         }
                     }
                 }
-            ]
+            ],
+            "default_case": "Yes"
         },
         "SmallEventStory": {
             "type": "switch",
-            "default_case": "Yes",
             "label": "$option.SmallEventContent.SmallEventStory",
             "cases": [
                 {
@@ -179,11 +234,11 @@
                         }
                     }
                 }
-            ]
+            ],
+            "default_case": "Yes"
         },
         "SmallEventMission": {
             "type": "switch",
-            "default_case": "Yes",
             "label": "$option.SmallEventContent.SmallEventMission",
             "cases": [
                 {
@@ -202,7 +257,8 @@
                         }
                     }
                 }
-            ]
+            ],
+            "default_case": "Yes"
         }
     }
 }

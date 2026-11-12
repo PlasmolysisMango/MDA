@@ -1,0 +1,235 @@
+{
+    "SceneEnterArena": {
+        "desc": "纯导航，不执行竞技场任务", // 命中首页哨兵即返回调用方；误入新人/特殊/冠军子页由 __SceneArkEscapeSubPage 拉回
+        "timeout": 10000,
+        "next": [
+            "ArenaMainPageEntered",
+            "__SceneArkClickArena",
+            "[JumpBack]__SceneArkEscapeSubPage",
+            "[JumpBack]__SceneArkRecoverForArena"
+        ]
+    },
+    "__SceneArkEscapeSubPage": {
+        "desc": "方舟子页退回上一级", // 各子页左下角都有返回；竞技场子页要先退到竞技场首页再退方舟，故留两次预算
+        "max_hit": 2, // 最多退两次，仍退不回去就交给外层（回大厅兜底或超时）
+        "recognition": {
+            "type": "Or",
+            "param": {
+                "any_of": [
+                    "ArenaMainPageEntered", // 竞技场首页顶栏只写「竞技场」，子页哨兵认不出，必须单独列
+                    "RookieArenaMainPageEntered",
+                    "SpecialArenaMainPageEntered",
+                    "ChampionArenaMainPageEntered",
+                    "SimulationRoomMainPageEntered",
+                    "InterceptionMainPageEntered",
+                    "TribeTowerSelectPageEntered"
+                ]
+            }
+        },
+        "next": [
+            "CommonGoBack"
+        ]
+    },
+    "__SceneArkClickArena": {
+        "desc": "点击竞技场入口", // 已确认方舟页才调用；点击后只等待目标页面，不做额外处理
+        "max_hit": 3,
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "ArkEnterArena", // 放首位：命中框就是入口框，不是用来确认页面的 CommonArkEntered
+                    "CommonArkEntered"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_wait_freezes": 1000,
+        "timeout": 10000,
+        "next": [
+            "ArenaMainPageEntered",
+            "__SceneArkClickArena"
+        ]
+    },
+    "__SceneArkRecoverForArena": {
+        "desc": "不在方舟时回方舟",
+        "max_hit": 1,
+        "recognition": {
+            "type": "Or",
+            "param": {
+                "any_of": [
+                    "CommonArkEntered"
+                ]
+            }
+        },
+        "inverse": true, // 不在方舟才触发；已在方舟但入口不可见时不再重试，交给外层超时
+        "next": [
+            "SceneEnterArk"
+        ]
+    },
+    "SceneEnterInterception": {
+        "desc": "纯导航，不执行拦截战任务", // 命中拦截战首页即返回调用方；入场后的空白弹窗由 __SceneArkDismissInterceptionEntry 收尾
+        "timeout": 10000,
+        "next": [
+            "InterceptionMainPageEntered",
+            "__SceneArkClickInterception",
+            "[JumpBack]__SceneArkRecoverForInterception"
+        ]
+    },
+    "__SceneArkClickInterception": {
+        "desc": "点击拦截战入口", // 已确认方舟页才调用；入场后的空白弹窗沿用原处理
+        "max_hit": 3,
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "ArkEnterInterception", // 放首位：命中框就是入口框
+                    "CommonArkEntered"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_wait_freezes": 1000,
+        "timeout": 10000,
+        "next": [
+            "InterceptionMainPageEntered",
+            "__SceneArkClickInterception",
+            "[JumpBack]__SceneArkDismissInterceptionEntry"
+        ]
+    },
+    "__SceneArkDismissInterceptionEntry": {
+        "desc": "入场后点空白跳过弹窗",
+        "max_hit": 3, // CommonClickBlank 自带 120 次预算，直接复用会把预算一次用光，这里每个任务只试 3 次
+        "next": [
+            "CommonClickBlank"
+        ]
+    },
+    "__SceneArkRecoverForInterception": {
+        "desc": "不在方舟时回方舟",
+        "max_hit": 1,
+        "recognition": {
+            "type": "Or",
+            "param": {
+                "any_of": [
+                    "CommonArkEntered"
+                ]
+            }
+        },
+        "inverse": true, // 不在方舟才触发；已在方舟但入口不可见时不再重试，交给外层超时
+        "next": [
+            "SceneEnterArk"
+        ]
+    },
+    "SceneEnterSimulationRoom": {
+        "desc": "纯导航，不选模拟或超频", // 命中模拟室首页即返回；入场会先弹 BIOS 更新确认，由 __SceneArkConfirmSimulationBiosUpdate 处理
+        "timeout": 10000,
+        "next": [
+            "SimulationRoomMainPageEntered",
+            "__SceneArkClickSimulationRoom",
+            "[JumpBack]__SceneArkRecoverForSimulationRoom"
+        ]
+    },
+    "__SceneArkClickSimulationRoom": {
+        "desc": "点击模拟室入口", // 已确认方舟页才调用；BIOS 更新确认交给 next 里的确认节点，不在本节点处理
+        "max_hit": 3,
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "SimulationRoomEnterMain", // 放首位：命中框就是入口框
+                    "CommonArkEntered"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "timeout": 10000,
+        "next": [
+            "[JumpBack]__SceneArkConfirmSimulationBiosUpdate",
+            "SimulationRoomMainPageEntered",
+            "__SceneArkClickSimulationRoom"
+        ]
+    },
+    "__SceneArkConfirmSimulationBiosUpdate": {
+        "desc": "确认 BIOS 更新弹窗", // 由 __SceneArkClickSimulationRoom 的 next 以 [JumpBack] 调用，确认后回到该节点的 next 继续等首页
+        "max_hit": 1, // 只在入场链确认一次，弹窗持续存在时不再重复点击
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "SimulationRoomConfirmBiosUpdate"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        }
+    },
+    "__SceneArkRecoverForSimulationRoom": {
+        "desc": "不在方舟时回方舟",
+        "max_hit": 1,
+        "recognition": {
+            "type": "Or",
+            "param": {
+                "any_of": [
+                    "CommonArkEntered"
+                ]
+            }
+        },
+        "inverse": true, // 不在方舟才触发；已在方舟但入口不可见时不再重试，交给外层超时
+        "next": [
+            "SceneEnterArk"
+        ]
+    },
+    "SceneEnterTribeTower": {
+        "desc": "纯导航，不选塔或关卡", // 命中无限之塔首页即返回；不选塔也不进关卡
+        "timeout": 10000,
+        "next": [
+            "TribeTowerSelectPageEntered",
+            "__SceneArkClickTribeTower",
+            "[JumpBack]__SceneArkRecoverForTribeTower"
+        ]
+    },
+    "__SceneArkClickTribeTower": {
+        "desc": "点击无限之塔入口", // 已确认方舟页才调用；点击后只等待目标页面
+        "max_hit": 3,
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "ArkEnterTribeTower", // 放首位：命中框就是入口框
+                    "CommonArkEntered"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_wait_freezes": 1000,
+        "timeout": 10000,
+        "next": [
+            "TribeTowerSelectPageEntered",
+            "__SceneArkClickTribeTower"
+        ]
+    },
+    "__SceneArkRecoverForTribeTower": {
+        "desc": "不在方舟时回方舟",
+        "max_hit": 1,
+        "recognition": {
+            "type": "Or",
+            "param": {
+                "any_of": [
+                    "CommonArkEntered"
+                ]
+            }
+        },
+        "inverse": true, // 不在方舟才触发；已在方舟但入口不可见时不再重试，交给外层超时
+        "next": [
+            "SceneEnterArk"
+        ]
+    }
+}

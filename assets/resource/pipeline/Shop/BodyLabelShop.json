@@ -1,0 +1,123 @@
+{
+    "BodyLabelShop": {
+        "desc": "躯体标签商店",
+        "max_hit": 1,
+        "next": [
+            "[JumpBack]ShopEnterBodyLabelShop",
+            "[JumpBack]ShopPurchaseFlow",
+            "[JumpBack]BodyLabelShopPurchaseDiscountedItem",
+            "CommonEndTask"
+        ]
+    },
+    "ShopEnterBodyLabelShop": {
+        "desc": "进入躯体标签商店",
+        "max_hit": 1,
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "ShopBodyLabelShopTab", // 放在首位以取页签框作为点击目标
+                    "ShopBodyLabelShopTabUnselected"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "next": [
+            "ShopBodyLabelShopEntered",
+            "ShopEnterBodyLabelShop"
+        ]
+    },
+    "ShopBodyLabelShopTab": {
+        "desc": "躯体标签商店侧栏页签",
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    0,
+                    368,
+                    56,
+                    55
+                ],
+                "template": [
+                    "Shop/BodyLabelShop/BodyLabelShopNotSelected.png",
+                    "Shop/BodyLabelShop/BodyLabelShopSelected.png"
+                ],
+                "threshold": 0.8 // 收窄到本行后不会再跨页签误命中，无需为区分同形页签卡到 0.999
+            }
+        }
+    },
+    "ShopBodyLabelShopTabUnselected": {
+        "desc": "躯体标签商店页签未选中",
+        "recognition": {
+            "type": "ColorMatch",
+            "param": {
+                "roi": [
+                    0,
+                    368,
+                    56,
+                    55
+                ], // 选中时整行铺橙底(≈248,156,43)，未选中是深灰，故命中深色即未选中
+                "lower": [
+                    0,
+                    0,
+                    0
+                ],
+                "upper": [
+                    140,
+                    140,
+                    140
+                ],
+                "count": 800
+            }
+        }
+    },
+    "ShopBodyLabelShopEntered": {
+        "desc": "处于躯体标签商店",
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    68,
+                    264,
+                    119,
+                    20
+                ],
+                "expected": [
+                    "躯体标签商店"
+                ]
+            }
+        }
+    },
+    "BodyLabelShopPurchaseDiscountedItem": {
+        "desc": "购买打折商品",
+        "enabled": false,
+        "max_hit": 1, // 一轮只买 1 份
+        "recognition": {
+            "type": "OCR", // 商品无限量供应，只有 1 号位是「限量 + 打折」且每天轮换，所以只认卡片上的打折标识（黄底白字）；整块商品区 ROI 过滤后只剩标识一框，target_offset 把点击抬到卡片中部
+            "param": {
+                "roi": [
+                    58,
+                    338,
+                    1222,
+                    325
+                ],
+                "expected": [
+                    ".*SALE.*"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click",
+            "param": {
+                "target_offset": [
+                    0,
+                    -30,
+                    0,
+                    0
+                ]
+            }
+        }
+    }
+}

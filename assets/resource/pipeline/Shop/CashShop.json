@@ -1,12 +1,29 @@
 {
     "CashShopMain": {
         "next": [
+            "CashShopResumeFlow",
             "HallEnterCashShop",
-            "[JumpBack]CommonReturnHall"
+            "[JumpBack]SceneEnterHall"
+        ]
+    },
+    "CashShopResumeFlow": {
+        "desc": "复用当前商店页面",
+        "recognition": {
+            "type": "And", // 标题和「普通礼包」页签同时可见才算已在付费商店，避免把百货商店误认成付费商店继续推进
+            "param": {
+                "all_of": [
+                    "CashShopMainPageEntered",
+                    "ShopChooseOrdinaryPackage"
+                ]
+            }
+        },
+        "next": [
+            "CashShopCornerFlow"
         ]
     },
     "HallEnterCashShop": {
         "desc": "进入付费商店",
+        "max_hit": 8, // 商店请求挂起时入口会一直停在原位，点满 8 次（约 13s）后只再等一次 next 超时，避免无上限盲点
         "recognition": {
             "type": "OCR",
             "param": {
@@ -24,9 +41,87 @@
         "action": {
             "type": "Click"
         },
+        "post_delay": 1500, // 点完先给商店请求留出返回时间，正常一次就进店，异常时也能等到网络异常弹窗再重试
         "next": [
+            "[JumpBack]CashShopConsumeLimitFlow", //日服进入付费商店会弹出消费限制弹窗，先处理再确认是否已进入商店
             "CashShopCornerFlow",
+            "CashShopNetworkErrorFlow",
             "HallEnterCashShop"
+        ]
+    },
+    "CashShopNetworkErrorVisible": {
+        "desc": "付费商店网络异常弹窗可见",
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    540,
+                    300,
+                    220,
+                    45
+                ],
+                "expected": [
+                    "网络异常.*读取商城.*失败"
+                ]
+            }
+        }
+    },
+    "CashShopNetworkRetryButtonVisible": {
+        "desc": "付费商店重新再试按钮可见",
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    685,
+                    433,
+                    110,
+                    38
+                ],
+                "expected": [
+                    "重新再试"
+                ]
+            }
+        }
+    },
+    "CashShopNetworkErrorFlow": {
+        "desc": "网络异常后等页面",
+        "recognition": {
+            "type": "And", // 弹窗出现后别再点商店入口（会点在弹窗后面的页面上空转），在这里等页面自己恢复
+            "param": {
+                "all_of": [
+                    "CashShopNetworkErrorVisible"
+                ]
+            }
+        },
+        "timeout": 20000,
+        "next": [
+            "CashShopRetryNetworkError",
+            "[JumpBack]CashShopConsumeLimitFlow",
+            "CashShopCornerFlow"
+        ]
+    },
+    "CashShopRetryNetworkError": {
+        "desc": "重试网络异常弹窗",
+        "enabled": true, // 由选项 CashShopNetworkRetry 覆盖（默认 Yes），关掉后本节点整体不生效
+        "max_hit": 2, // 最多点两次「重新再试」，第二次只用于重试后再次弹窗的情况，不会无限重试
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "CashShopNetworkRetryButtonVisible",
+                    "CashShopNetworkErrorVisible"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_delay": 1000, // 点完等弹窗散掉再判 next，免得第二次重试被浪费在正在淡出的弹窗上
+        "timeout": 60000,
+        "next": [
+            "CashShopNetworkErrorFlow", //重试后又弹网络异常时再点一次，次数仍受 max_hit 限制
+            "[JumpBack]CashShopConsumeLimitFlow",
+            "CashShopCornerFlow"
         ]
     },
     "CashShopMainPageEntered": {
@@ -57,24 +152,55 @@
             }
         },
         "next": [
-            "[JumpBack]ShopPurchaseStepUpPackage",
+            "[JumpBack]CashShopConsumeLimitFlow", //弹窗可能比页面稍晚出现，进入商店页后再兜底一次
             "ShopChooseOrdinaryPackage"
         ]
     },
-    "ShopPurchaseStepUpPackage": {
-        "desc": "购买StepUp礼包",
-        "max_hit": 1,
+    "CashShopConsumeLimitVisible": {
+        "desc": "消费限制弹窗可见",
         "recognition": {
             "type": "OCR",
             "param": {
                 "roi": [
-                    783,
-                    389,
-                    49,
-                    28
+                    560,
+                    165,
+                    170,
+                    40
                 ],
                 "expected": [
-                    "免费"
+                    "消费限制"
+                ]
+            }
+        }
+    },
+    "CashShopConsumeLimitFlow": {
+        "desc": "消费限制弹窗流程",
+        "max_hit": 1, //护栏：每个任务只处理一次，避免确认点击无效时被外层 [JumpBack] 反复重入
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "CashShopConsumeLimitVisible"
+                ]
+            }
+        },
+        "next": [
+            "CashShopConsumeLimitChooseAgeOver20" //单向链：选年龄 → 确认。两节点的识别条件在点击后仍成立，放进 jump_back 回跳列表会反复命中
+        ]
+    },
+    "CashShopConsumeLimitChooseAgeOver20": {
+        "desc": "选择20岁以上",
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    480,
+                    435,
+                    140,
+                    40
+                ],
+                "expected": [
+                    "20岁以上"
                 ]
             }
         },
@@ -82,8 +208,30 @@
             "type": "Click"
         },
         "next": [
-            "CommonConfirmReward"
+            "CashShopConsumeLimitConfirm" //点完年龄直接去点确认，不回跳
         ]
+    },
+    "CashShopConsumeLimitConfirm": {
+        "desc": "消费限制弹窗确认",
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    630,
+                    528,
+                    150,
+                    48
+                ],
+                "template": [
+                    "Common/ConfirmWithCircle.png",
+                    "Common/ConfirmWithCircle2.png"
+                ]
+            }
+        },
+        "pre_wait_freezes": 500, //等「选中年龄」后的确认按钮从禁用态激活
+        "action": {
+            "type": "Click"
+        }
     },
     "ShopChooseOrdinaryPackage": {
         "desc": "选择普通礼包",
@@ -108,6 +256,7 @@
         "action": {
             "type": "Click"
         },
+        "post_wait_freezes": 1000, //点完礼包标签会有点击特效和切页动画，不等它散干净兜底识别会掉到 0.6 直接判失败
         "next": [
             "[JumpBack]CashShopClickRedDot",
             "[JumpBack]CommonConfirmReward",

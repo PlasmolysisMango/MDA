@@ -83,7 +83,7 @@
                     778,
                     231,
                     24,
-                    20
+                    356
                 ],
                 "template": [
                     "Common/RedDot.png"
@@ -150,6 +150,9 @@
                 ],
                 "count": 3000
             }
-        }
+        },
+        "next": [
+            "CommonClosePage"
+        ]
     }
 }

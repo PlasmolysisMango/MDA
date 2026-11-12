@@ -45,36 +45,34 @@ func (c *AspectRatioChecker) OnTaskerTask(tasker *maa.Tasker, event maa.EventSta
 	// Get controller from tasker
 	controller := tasker.GetController()
 	if controller == nil {
-		log.Error().Msg("Failed to get controller from tasker")
+		log.Warn().Msg("Failed to get controller from tasker, skipping aspect ratio check")
 		return
 	}
 
-	const maxRetries = 20
+	const maxRetries = 10
 	var width, height int32
 	var err error
 	for i := range maxRetries {
 		width, height, err = controller.GetResolution()
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to get resolution")
-			return
-		}
-		if width > 100 && height > 100 {
+		if err == nil && width > 100 && height > 100 {
 			break
 		}
 		log.Debug().
+			Err(err).
 			Int32("width", width).
 			Int32("height", height).
 			Int("attempt", i+1).
-			Msg("Resolution too small, window may not be ready yet, retrying...")
-		time.Sleep(time.Second)
+			Msg("Resolution not ready yet, triggering screencap and retrying...")
 		controller.PostScreencap().Wait()
+		time.Sleep(300 * time.Millisecond)
 	}
 
-	if width <= 100 || height <= 100 {
-		log.Error().
+	if err != nil || width <= 100 || height <= 100 {
+		log.Warn().
+			Err(err).
 			Int32("width", width).
 			Int32("height", height).
-			Msg("Resolution still too small after max retries, skipping aspect ratio check")
+			Msg("Resolution unavailable or too small after retries, skipping aspect ratio check")
 		return
 	}
 
@@ -83,7 +81,7 @@ func (c *AspectRatioChecker) OnTaskerTask(tasker *maa.Tasker, event maa.EventSta
 		Int32("height", height).
 		Msg("Got resolution")
 
-	controlType := strings.ToLower(strings.TrimSpace(pienv.ControllerType()))
+	controlType := pienv.ResolveControllerKind(controller)
 	controllerDisplay := displayController(pienv.ControllerName(), controlType)
 
 	log.Debug().
@@ -211,11 +209,21 @@ func displayController(name, controllerType string) string {
 }
 
 func displayControllerType(controllerType string) string {
-	switch controllerType {
-	case "adb":
+	switch pienv.NormalizeControllerKind(controllerType) {
+	case pienv.ControllerKindAdb:
 		return "ADB"
-	case "win32":
+	case pienv.ControllerKindWin32:
 		return "Win32"
+	case pienv.ControllerKindNativeAndroid:
+		return "Android"
+	case pienv.ControllerKindPlayCover:
+		return "PlayCover"
+	case pienv.ControllerKindMacOS:
+		return "macOS"
+	case pienv.ControllerKindLinux:
+		return "Linux"
+	case pienv.ControllerKindGamepad:
+		return "Gamepad"
 	default:
 		return controllerType
 	}

@@ -427,9 +427,13 @@ FodyWeavers.xsd
 # Local History for Visual Studio Code
 .history/
 
-# Claude Code
-.claude/*
-!.claude/skills/
+# Project agent skills
+!.agents/
+!.agents/skills/
+!.agents/skills/**
+.agents/**/__pycache__/
+.agents/**/*.pyc
+.agents/settings.local.json
 
 # Windows Installer files from build outputs
 *.cab
@@ -478,7 +482,15 @@ Temporary Items
 
 # python
 venv/
+.venv/
 .cache/
+
+# Android 签名、安装包及设备反馈仅保存在本机或 CI Secrets / Artifacts。
+*.apk
+*.aab
+*.jks
+*.keystore
+maafw_logs_*.zip
 
 # maa-tools
 tests/maatools
@@ -489,3 +501,28 @@ tests/maatools
 # Local AI/code intelligence preferences
 .codegraph/
 .cursor/
+
+# DSH session artifacts
+.dsh-filess/
+
+# WorkBuddy session artifacts
+.workbuddy/
+
+# 框架语义验证工具（刻意提交，勿忽略）
+#
+# tools/verify/ 是用 MaaFramework 公开 C API 实测 pipeline 语义的可复现工具：
+# 脚本靠 __file__ 反推仓库根，资源是仓库自带的最简 pipeline + 小样图，
+# 记录了「override 深合并」「template 整体替换」「input 值持久化」等
+# 无法从文档确认的框架行为，是活动主题路由设计的证据链。
+# 若将来需要新增宽泛规则（如 tools/*），请勿连带忽略本目录。
+!tools/verify/
+
+# EquipmentReroll 本地调试脚手架与策略评估产物（保留正式回归测试及运行时模板）
+/.local/equipmentreroll/
+/agent/go-service/equipmentreroll/scan_ocr_integration_test.go
+/agent/go-service/equipmentreroll/value_evaluation_test.go
+/agent/go-service/equipmentreroll/value_evaluation_extended_test.go
+/agent/go-service/equipmentreroll/testdata/value/
+/docs/zh_cn/nikke/EquipmentReroll/value-evaluation-*.json
+/docs/zh_cn/nikke/EquipmentReroll/数值策略离线评估-*.md
+/docs/zh_cn/nikke/EquipmentReroll/数值策略扩展评估-*.md

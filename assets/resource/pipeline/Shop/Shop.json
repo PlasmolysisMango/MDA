@@ -1,8 +1,8 @@
 {
     "ShopMain": {
         "next": [
-            "HallEnterShop",
-            "[JumpBack]CommonReturnHall"
+            "ShopCornerFlow",
+            "[JumpBack]SceneEnterShop"
         ]
     },
     "HallEnterShop": {
@@ -58,8 +58,10 @@
         },
         "next": [
             "[JumpBack]CommonShop",
+            "[JumpBack]UnionShop",
             "[JumpBack]ArenaShop",
             "[JumpBack]RecyclingShop",
+            "[JumpBack]BodyLabelShop",
             "CommonEndTask"
         ]
     },
@@ -88,7 +90,7 @@
         ]
     },
     "ShopPurchaseGemBlocked": {
-        "desc": "宝珠购买阻断",
+        "desc": "珠宝购买阻断",
         "recognition": {
             "type": "And",
             "param": {

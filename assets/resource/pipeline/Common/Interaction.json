@@ -22,6 +22,7 @@
     },
     "CommonConfirmAction": {
         "desc": "操作确认",
+        "max_hit": 20,
         "recognition": {
             "type": "TemplateMatch",
             "param": {
@@ -41,6 +42,59 @@
             "type": "Click"
         },
         "post_wait_freezes": 500
+    },
+    "CommonGemCostNoticeVisible": {
+        "desc": "珠宝消费告知文案可见",
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    500,
+                    315,
+                    270,
+                    85
+                ],
+                "expected": [
+                    ".*珠宝.*" //同时覆盖「使用珠宝招募或购买道具时…」与「消耗资金」两行，任一读到珠宝即成立
+                ]
+            }
+        }
+    },
+    "CommonCancelOptionVisible": {
+        "desc": "通知弹窗取消按钮可见",
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    481,
+                    431,
+                    149,
+                    36
+                ],
+                "expected": [
+                    ".*取消.*"
+                ]
+            }
+        }
+    },
+    "CommonPurchaseGemBlocked": {
+        "desc": "珠宝消费确认阻断", //凡是需要用珠宝购买的确认弹窗，一律点取消，绝不代为付费
+        "recognition": {
+            "type": "And",
+            "param": {
+                "all_of": [
+                    "CommonCancelOptionVisible", // 放首位：命中框就是取消按钮，点击落在取消上
+                    "CommonGemCostNoticeVisible"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_wait_freezes": 500,
+        "next": [
+            "CommonEndTask"
+        ]
     },
     "CommonClosePage": {
         "desc": "关闭页面",
@@ -106,7 +160,8 @@
                 "template": [
                     "Common/GoBack1.png",
                     "Common/GoBack2.png",
-                    "Common/GoBack3.png"
+                    "Common/GoBack3.png",
+                    "Common/GoBack4.png"
                 ]
             }
         },
@@ -222,6 +277,24 @@
         },
         "post_wait_freezes": 20
     },
+    "CommonSwipeBanner": {
+        "desc": "滑动左上角横幅", // 每次滑一屏；滑满 20 次仍未命中入口，交给调用方的 CommonEndTask 收尾
+        "max_hit": 20,
+        "action": {
+            "type": "Swipe",
+            "param": {
+                "begin": [
+                    20,
+                    80
+                ],
+                "end": [
+                    160,
+                    80
+                ],
+                "end_hold": 300
+            }
+        }
+    },
     "CommonBellIconVisible": {
         "desc": "右上角铃铛图标可见",
         "recognition": {
@@ -262,9 +335,11 @@
         "timeout": 120000,
         "next": [
             "[JumpBack]CommonClosePage",
+            "[JumpBack]BattleClosePage",
             "[JumpBack]LoginConfirmServer",
             "[JumpBack]LoginConfirmDownload",
             "[JumpBack]LoginConfirmLogin",
+            "[JumpBack]DailyLoginRewardsFlow",
             "[JumpBack]CommonClickHomeButton",
             "[JumpBack]CommonSkipPlot",
             "[JumpBack]CommonCloseSale",
@@ -337,13 +412,15 @@
     "CommonFreeStateFlow": {
         "desc": "自由状态响应流程",
         "recognition": {
-            "type": "And",
+            "type": "Or",
             "param": {
-                "all_of": [
-                    "CommonNoticeVisible"
+                "any_of": [
+                    "CommonNoticeVisible",
+                    "CommonClosePage"
                 ]
             }
         },
+        "timeout": 5000,
         "next": [
             "[JumpBack]CommonClosePage",
             "CommonEndTask"
@@ -382,7 +459,8 @@
                 ],
                 "expected": [
                     "SKIP"
-                ]
+                ],
+                "only_rec": true //避免 batch OCR 降采样后 det 读不出小字
             }
         },
         "action": {
@@ -414,9 +492,12 @@
         "action": {
             "type": "Click"
         },
+        "post_wait_freezes": 500,
         "next": [
+            "[JumpBack]DailyLoginRewardsFlow", //登录后的签到页可能晚于铃铛图标加载完成
             "CommonFreeStateFlow",
-            "[Anchor]NeedCheck"
+            "CommonClickFreeState", //兜底
+            "[JumpBack]CommonCloseSale"
         ]
     },
     "CommonClickHall": {
@@ -442,9 +523,7 @@
     "CommonEnterArk": {
         "desc": "进入方舟",
         "next": [
-            "CommonArkEntered",
-            "CommonClickArk",
-            "[JumpBack]CommonReturnHall"
+            "SceneEnterArk"
         ]
     },
     "CommonArkEntered": {
@@ -515,6 +594,28 @@
                 ]
             }
         }
+    },
+    "CommonClickEventChange": {
+        "desc": "点击活动轮换按钮",
+        "max_hit": 1,
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "roi": [
+                    961,
+                    625,
+                    26,
+                    25
+                ],
+                "template": [
+                    "Common/EventChange.png"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click"
+        },
+        "post_wait_freezes": 500
     },
     "CommonEndTask": {
         "desc": "空节点，用于结束流程"
